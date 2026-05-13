@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Vavilon Market</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">🏛 <span>Vavilon Market</span></div>
+  <div class="balance" id="balance">— ₽</div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="shop">🛒 Магазин</button>
+  <button class="tab" data-tab="balance">💰 Баланс</button>
+  <button class="tab" data-tab="orders">📦 Заказы</button>
+  <button class="tab" data-tab="ref">👥 Друзья</button>
+  <button class="tab" data-tab="review">⭐ Отзыв</button>
+</nav>
+
+<main>
+  <!-- SHOP TAB -->
+  <section class="tab-content active" data-tab="shop">
+    <h2>Категории</h2>
+    <div class="cards">
+      {% for c in categories %}
+      <button class="card" data-category="{{ c.key }}">
+        <span class="card-emoji">{{ c.emoji }}</span>
+        <span class="card-title">{{ c.title }}</span>
+        <span class="card-sub">{{ c.description }}</span>
+      </button>
+      {% endfor %}
+    </div>
+
+    <!-- Robux / Stars spinner -->
+    <div class="modal hidden" id="linear-modal">
+      <div class="modal-body">
+        <button class="close" id="linear-close">×</button>
+        <h3 id="linear-title"></h3>
+        <p class="muted" id="linear-rate"></p>
+        <div class="spinner">
+          <button data-step="-5">−<span data-bigstep>500</span></button>
+          <button data-step="-1">−</button>
+          <div class="qty" id="linear-qty">100</div>
+          <button data-step="1">+</button>
+          <button data-step="5">+<span data-bigstep>500</span></button>
+        </div>
+        <input type="number" id="linear-input" placeholder="Своё количество" />
+        <div class="total">К оплате: <b id="linear-price">80₽</b></div>
+        <button class="primary" id="linear-buy">Купить</button>
+      </div>
+    </div>
+
+    <!-- Pack picker -->
+    <div class="modal hidden" id="packs-modal">
+      <div class="modal-body">
+        <button class="close" id="packs-close">×</button>
+        <h3 id="packs-title">Наборы</h3>
+        <div class="pack-list" id="packs-list"></div>
+      </div>
+    </div>
+
+    <!-- Target prompt -->
+    <div class="modal hidden" id="target-modal">
+      <div class="modal-body">
+        <button class="close" id="target-close">×</button>
+        <h3 id="target-title">Доставка</h3>
+        <p class="muted" id="target-hint"></p>
+        <input type="text" id="target-input" placeholder="" />
+        <div class="total">К оплате: <b id="target-price">—</b></div>
+        <button class="primary" id="target-confirm">Подтвердить покупку</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- BALANCE TAB -->
+  <section class="tab-content" data-tab="balance">
+    <h2>Пополнение баланса</h2>
+    <p class="muted">Оплата через @CryptoBot (USDT, TON, BTC, ETH и др.). Зачисление автоматически после оплаты.</p>
+    <div class="presets">
+      {% for amount in deposit_presets %}
+        <button class="preset" data-amount="{{ amount }}">{{ amount }}₽</button>
+      {% endfor %}
+    </div>
+    <div class="custom-row">
+      <input type="number" id="deposit-amount" min="{{ deposit_min }}" max="{{ deposit_max }}" placeholder="Своя сумма ({{ deposit_min }}–{{ deposit_max }}₽)" />
+      <button class="primary" id="deposit-go">Пополнить</button>
+    </div>
+    <div id="deposit-result"></div>
+  </section>
+
+  <!-- ORDERS TAB -->
+  <section class="tab-content" data-tab="orders">
+    <h2>Мои заказы</h2>
+    <div id="orders-list" class="orders"></div>
+  </section>
+
+  <!-- REFERRAL TAB -->
+  <section class="tab-content" data-tab="ref">
+    <h2>Реферальная программа</h2>
+    <p class="muted">За каждую покупку друга от {{ referral_threshold }}₽ ты получаешь +{{ referral_bonus }}₽ на баланс.</p>
+    <div class="ref-box">
+      <div class="ref-row"><span>Твой код:</span> <b id="ref-code">—</b></div>
+      <div class="ref-row"><span>Ссылка:</span> <input id="ref-link" readonly /></div>
+      <button class="primary" id="ref-share">Поделиться</button>
+      <div class="ref-stats">
+        <div><span>Приглашено</span><b id="ref-count">—</b></div>
+        <div><span>Заработано</span><b id="ref-earned">— ₽</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REVIEW TAB -->
+  <section class="tab-content" data-tab="review">
+    <h2>Оставить отзыв</h2>
+    <p class="muted">Отзыв улетит в канал <a href="https://t.me/{{ news_channel|replace('@','') }}" target="_blank">{{ news_channel }}</a>.</p>
+    <div class="stars" id="rating">
+      <span data-r="1">☆</span><span data-r="2">☆</span><span data-r="3">☆</span><span data-r="4">☆</span><span data-r="5">☆</span>
+    </div>
+    <textarea id="review-text" rows="4" placeholder="Как прошла покупка?"></textarea>
+    <label class="file-label">
+      <input type="file" id="review-photo" accept="image/*" />
+      <span>📎 Прикрепить скриншот</span>
+    </label>
+    <div id="review-file-name" class="muted"></div>
+    <button class="primary" id="review-submit">Отправить отзыв</button>
+    <div id="review-result"></div>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script>
+window.__CFG__ = {
+  robuxStep: {{ robux_step }},
+  starsStep: {{ stars_step }},
+  robuxMin: {{ robux_min }}, robuxMax: {{ robux_max }},
+  starsMin: {{ stars_min }}, starsMax: {{ stars_max }},
+  depositMin: {{ deposit_min }}, depositMax: {{ deposit_max }},
+};
+</script>
+<script src="/static/app.js"></script>
+</body>
+</html>
