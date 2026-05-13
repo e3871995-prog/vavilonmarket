@@ -27,14 +27,60 @@ img{max-width:100%;display:block}
 /* HEADER */
 .vm-header{position:sticky;top:0;z-index:100;background:rgba(13,17,23,.92);backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+.vm-header-actions{display:flex;align-items:center;gap:8px}
+.vm-login-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:800;font-size:13px;
+  padding:8px 16px;border-radius:10px;transition:.15s;box-shadow:0 4px 14px rgba(168,85,247,.4)}
+.vm-login-btn:active{transform:scale(.95)}
+.vm-logout-btn{background:var(--bg3);color:var(--text2);box-shadow:none}
+
+/* Login sheet specifics */
+.vm-login-hint{font-size:12px;color:var(--text3);margin:8px 4px 14px}
+.vm-login-hint a{color:var(--accent);font-weight:600}
+.vm-login-wait{padding:20px 8px;text-align:center}
+.vm-login-wait-title{font-size:16px;font-weight:700;margin-top:14px}
+.vm-login-wait-sub{font-size:13px;color:var(--text2);margin-top:6px;margin-bottom:14px}
+.vm-spin{display:inline-block;width:42px;height:42px;border:3px solid var(--bg3);border-top-color:var(--accent);
+  border-radius:50%;animation:vmspin 1s linear infinite}
+@keyframes vmspin{to{transform:rotate(360deg)}}
+
+/* BROWSER-MODE OVERRIDES */
 body.vm-in-browser .vm-browser-banner{display:flex !important}
 body.vm-in-browser .vm-header{top:46px}
-body.vm-in-browser .vm-page{max-width:560px}
-body.vm-in-browser .vm-bottom-nav{max-width:560px;margin:0 auto;border-radius:0}
-body.vm-in-browser .vm-bn-item[data-page="profile"]{opacity:.5}
-@media (min-width:900px){
-  body.vm-in-browser{background:radial-gradient(circle at 50% -10%,#1c2333,#0d1117 60%)}
-  body.vm-in-browser .vm-page{max-width:640px;box-shadow:0 0 60px rgba(168,85,247,.15);background:var(--bg);border-left:1px solid var(--border);border-right:1px solid var(--border)}
+
+/* Desktop full-width layout (>1000px) */
+@media (min-width:1000px){
+  body.vm-in-browser{padding-bottom:0}
+  body.vm-in-browser .vm-page{max-width:1200px;margin:0 auto;padding:24px 24px 60px;min-height:calc(100vh - 110px)}
+  body.vm-in-browser .vm-page[data-page="home"]{display:none}
+  body.vm-in-browser .vm-page[data-page="home"].active{display:grid;grid-template-columns:2fr 1fr;gap:24px;align-items:start}
+  body.vm-in-browser .vm-page[data-page="home"] .vm-slider-wrap{grid-column:1 / -1;padding:0}
+  body.vm-in-browser .vm-page[data-page="home"] .vm-slider{padding:0}
+  body.vm-in-browser .vm-page[data-page="home"] .vm-slide{flex:0 0 calc(33.333% - 7px);min-height:160px}
+  body.vm-in-browser .vm-page[data-page="home"] .vm-trust-bar{grid-column:1 / -1;padding:0}
+  body.vm-in-browser .vm-page[data-page="home"] .vm-section{padding:0}
+  body.vm-in-browser .vm-page[data-page="home"] .vm-section:nth-of-type(2){grid-column:1}
+  body.vm-in-browser .vm-page[data-page="home"] .vm-cat-grid{grid-template-columns:repeat(4,1fr)}
+  body.vm-in-browser .vm-page[data-page="catalog"]{padding:0 24px 60px}
+  body.vm-in-browser .vm-page[data-page="catalog"] .vm-tab-content{max-width:560px;margin:0 auto}
+  body.vm-in-browser .vm-page[data-page="catalog"] .vm-tab-content[data-cat="brawl"],
+  body.vm-in-browser .vm-page[data-page="catalog"] .vm-tab-content[data-cat="clash"]{max-width:none}
+  body.vm-in-browser .vm-page[data-page="catalog"] .vm-pack-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  body.vm-in-browser .vm-page[data-page="profile"]{display:none}
+  body.vm-in-browser .vm-page[data-page="profile"].active{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+  body.vm-in-browser .vm-page[data-page="profile"] > .vm-section{padding:0}
+  body.vm-in-browser .vm-bottom-nav{position:sticky;bottom:auto;top:auto;left:0;right:0;border-top:none;
+    border-bottom:1px solid var(--border);padding:0;justify-content:center;gap:24px;max-width:none;margin:0;
+    background:transparent;backdrop-filter:none}
+  body.vm-in-browser .vm-bn-item{flex-direction:row;gap:8px;padding:14px 18px}
+  body.vm-in-browser .vm-bn-icon{font-size:18px}
+  body.vm-in-browser .vm-bn-label{font-size:14px}
+  body.vm-in-browser .vm-sheet{max-width:520px;left:50%;transform:translate(-50%,100%);right:auto;width:90vw;
+    border-radius:24px;bottom:50%;margin-bottom:-300px}
+  body.vm-in-browser .vm-sheet.active{transform:translate(-50%,0)}
+}
+@media (min-width:700px) and (max-width:999.99px){
+  body.vm-in-browser .vm-page{max-width:680px;margin:0 auto;padding:0 16px 60px}
+  body.vm-in-browser .vm-bottom-nav{max-width:680px;margin:0 auto}
 }
 .vm-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px}
 .vm-logo span{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}

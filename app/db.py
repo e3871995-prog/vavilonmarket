@@ -127,6 +127,22 @@ class CryptoInvoice(Base):
     paid_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
 
 
+class WebSession(Base):
+    """Browser login session: created by /api/web/login_start, confirmed via bot button."""
+
+    __tablename__ = "web_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    username: Mapped[str] = mapped_column(String(64), index=True)  # lowercase, no @
+    user_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id"), default=None)
+    ip: Mapped[str] = mapped_column(String(64), default="")
+    user_agent: Mapped[str] = mapped_column(String(255), default="")
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|confirmed|rejected|expired
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+
+
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

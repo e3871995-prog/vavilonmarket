@@ -945,6 +945,52 @@ async def cb_admin_action(callback: CallbackQuery, bot: Bot) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Web-login confirmation (browser sign-in flow)
+# ---------------------------------------------------------------------------
+@router.callback_query(F.data.startswith("weblogin:"))
+async def cb_weblogin(callback: CallbackQuery) -> None:
+    from sqlalchemy import select as _select
+
+    from .db import WebSession as _WebSession
+
+    parts = (callback.data or "").split(":")
+    if len(parts) != 3:
+        await callback.answer()
+        return
+    _, action, short_token = parts
+    async with SessionLocal() as session:
+        row = (
+            await session.execute(
+                _select(_WebSession).where(_WebSession.token.like(short_token + "%"))
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            await callback.answer("Сессия уже не активна", show_alert=True)
+            return
+        if row.user_id != callback.from_user.id:
+            await callback.answer("Это не твоя сессия входа", show_alert=True)
+            return
+        if row.status != "pending":
+            await callback.answer(f"Сессия уже {row.status}", show_alert=True)
+            return
+        if action == "ok":
+            from datetime import datetime as _dt
+
+            row.status = "confirmed"
+            row.confirmed_at = _dt.utcnow()
+            verdict = "✅ <b>Вход разрешён.</b> Возвращайся на сайт — он сам подхватит."
+        else:
+            row.status = "rejected"
+            verdict = "⛔️ <b>Вход отклонён.</b> Если это был не ты — смени пароль Telegram, никто к аккаунту не получил доступ."
+        await session.commit()
+    try:
+        await callback.message.edit_text((callback.message.text or "") + "\n\n" + verdict)
+    except TelegramBadRequest:
+        await callback.message.answer(verdict)
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
 # Bot bootstrap
 # ---------------------------------------------------------------------------
 def make_bot() -> Bot:

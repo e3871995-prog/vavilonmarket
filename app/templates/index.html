@@ -15,9 +15,9 @@
 <!-- Browser-only banner: shown when not opened from Telegram Mini App -->
 <div id="vm-browser-banner" class="vm-browser-banner" style="display:none">
   <div class="vm-bb-text">
-    Чтобы покупать, открой магазин в Telegram
+    Войди по @username — бот пришлёт подтверждение в Telegram
   </div>
-  <a class="vm-bb-btn" href="https://t.me/Vavilon_Shop_Bot" target="_blank" rel="noopener">Открыть бота →</a>
+  <button class="vm-bb-btn" data-action="open-login">Войти →</button>
 </div>
 
 <header class="vm-header">
@@ -26,6 +26,8 @@
     <span>VavilonMarket</span>
   </div>
   <div class="vm-header-actions">
+    <button id="vm-login-btn" class="vm-login-btn" data-action="open-login" style="display:none">Войти</button>
+    <button id="vm-logout-btn" class="vm-login-btn vm-logout-btn" data-action="do-logout" style="display:none">Выйти</button>
     <button class="vm-iconbtn" data-action="open-support" title="Поддержка">💬</button>
   </div>
 </header>
@@ -329,6 +331,29 @@
   </label>
   <button class="vm-cta" id="vm-review-submit">Отправить</button>
   <button class="vm-secondary" id="vm-review-close">Отмена</button>
+</div>
+
+<!-- login sheet -->
+<div class="vm-sheet" id="vm-login-sheet">
+  <div class="vm-sheet-handle"></div>
+  <div class="vm-sheet-title">Вход по Telegram</div>
+  <div class="vm-sheet-sub">Введи свой юзернейм — бот пришлёт подтверждение в Telegram.</div>
+  <div id="vm-login-step1">
+    <div class="vm-input-row">
+      <input class="vm-input vm-input-lg" id="vm-login-username" placeholder="@username" autocomplete="username">
+    </div>
+    <div class="vm-login-hint">Сначала нажми <b>/start</b> боту <a href="https://t.me/Vavilon_Shop_Bot" target="_blank">@Vavilon_Shop_Bot</a>, иначе он не сможет написать тебе.</div>
+    <button class="vm-cta" id="vm-login-submit">Отправить код в Telegram</button>
+  </div>
+  <div id="vm-login-step2" style="display:none">
+    <div class="vm-login-wait">
+      <div class="vm-spin"></div>
+      <div class="vm-login-wait-title">Ждём подтверждения…</div>
+      <div class="vm-login-wait-sub">Открой Telegram и нажми «Это я» в сообщении от бота.</div>
+      <a class="vm-mini-btn vm-tg-btn" href="https://t.me/Vavilon_Shop_Bot" target="_blank">Открыть Telegram</a>
+    </div>
+  </div>
+  <button class="vm-secondary" id="vm-login-close">Отмена</button>
 </div>
 
 <!-- support sheet -->

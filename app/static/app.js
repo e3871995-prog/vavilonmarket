@@ -5,14 +5,27 @@
   const initData = tg ? tg.initData : "";
   const IS_TG = !!(tg && initData);
   const BOT_LINK = "https://t.me/Vavilon_Shop_Bot";
+  const SESSION_KEY = "vm_web_session";
+  let webSession = !IS_TG ? (localStorage.getItem(SESSION_KEY) || "") : "";
+  function isAuthed() { return IS_TG || !!webSession; }
   if (!IS_TG) {
     document.body.classList.add("vm-in-browser");
     const banner = document.getElementById("vm-browser-banner");
     if (banner) banner.style.display = "";
   }
-  function openBot(reason) {
-    if (reason) toast(reason + " — открываю бота", "info");
-    setTimeout(() => { window.open(BOT_LINK, "_blank"); }, reason ? 800 : 0);
+  function updateLoginButton() {
+    const lin = document.getElementById("vm-login-btn");
+    const lout = document.getElementById("vm-logout-btn");
+    if (!lin || !lout) return;
+    if (IS_TG) { lin.style.display = "none"; lout.style.display = "none"; return; }
+    lin.style.display = webSession ? "none" : "";
+    lout.style.display = webSession ? "" : "none";
+  }
+  function requireAuth(intent) {
+    if (isAuthed()) return true;
+    toast("Сначала войди — введи @username", "error");
+    openSheet("vm-login-sheet");
+    return false;
   }
   const CFG = window.__CFG__ || {};
 
@@ -46,7 +59,8 @@
 
   async function api(path, opts) {
     opts = opts || {};
-    opts.headers = Object.assign({ "X-Init-Data": initData }, opts.headers || {});
+    const authHeaders = IS_TG ? { "X-Init-Data": initData } : (webSession ? { "X-Web-Session": webSession } : {});
+    opts.headers = Object.assign({}, authHeaders, opts.headers || {});
     if (opts.json !== undefined) {
       opts.body = JSON.stringify(opts.json);
       opts.headers["Content-Type"] = "application/json";
@@ -88,9 +102,11 @@
     const act = t.dataset.action;
     if (act === "go-cat") showCat(t.dataset.cat);
     else if (act === "go-page") showPage(t.dataset.page);
-    else if (act === "open-deposit") openSheet("vm-deposit-sheet");
-    else if (act === "open-review") openSheet("vm-review-sheet");
+    else if (act === "open-deposit") { if (!requireAuth("deposit")) return; openSheet("vm-deposit-sheet"); }
+    else if (act === "open-review") { if (!requireAuth("review")) return; openSheet("vm-review-sheet"); }
     else if (act === "open-support") openSheet("vm-support-sheet");
+    else if (act === "open-login") openSheet("vm-login-sheet");
+    else if (act === "do-logout") doLogout();
   });
 
   // ============= SHEETS =============
@@ -111,6 +127,8 @@
   $("#vm-deposit-close").addEventListener("click", closeSheet);
   $("#vm-review-close").addEventListener("click", closeSheet);
   $("#vm-support-close").addEventListener("click", closeSheet);
+  const _loginClose = document.getElementById("vm-login-close");
+  if (_loginClose) _loginClose.addEventListener("click", () => { stopLoginPolling(); closeSheet(); });
 
   // ============= SLIDER DOTS =============
   function initSlider() {
@@ -214,7 +232,7 @@
 
   // ============= BUY FLOW =============
   async function startBuy(draft) {
-    if (!IS_TG) { openBot("Покупки — в боте Telegram"); return; }
+    if (!requireAuth("buy")) return;
     if (!me) { toast("Подожди секунду, загружаем профиль", "error"); refreshProfile(); return; }
     try {
       const preview = await api("/api/preview", { method: "POST", json: { sku: draft.sku, quantity: draft.quantity } });
@@ -280,7 +298,7 @@
   }
   initDepositPresets();
   $("#vm-deposit-submit").addEventListener("click", async () => {
-    if (!IS_TG) { openBot("Пополнение — в боте Telegram"); return; }
+    if (!requireAuth("deposit")) return;
     const amt = parseInt($("#vm-deposit-input").value || "0", 10);
     if (!amt || amt < CFG.depositMin) { toast(`Минимум ${CFG.depositMin}₽`, "error"); return; }
     if (amt > CFG.depositMax) { toast(`Максимум ${CFG.depositMax}₽`, "error"); return; }
@@ -313,7 +331,7 @@
     else lbl.querySelector("span").textContent = "📎 Прикрепить скриншот";
   });
   $("#vm-review-submit").addEventListener("click", async () => {
-    if (!IS_TG) { openBot("Отзыв — через бота"); return; }
+    if (!requireAuth("review")) return;
     if (reviewRating < 1) { toast("Поставь оценку", "error"); return; }
     const text = $("#vm-review-text").value.trim();
     if (!text) { toast("Напиши пару слов", "error"); return; }
@@ -322,7 +340,8 @@
     fd.append("text", text);
     if (reviewPhoto) fd.append("photo", reviewPhoto);
     try {
-      const r = await fetch("/api/review", { method: "POST", headers: { "X-Init-Data": initData }, body: fd });
+      const reviewHeaders = IS_TG ? { "X-Init-Data": initData } : (webSession ? { "X-Web-Session": webSession } : {});
+      const r = await fetch("/api/review", { method: "POST", headers: reviewHeaders, body: fd });
       if (!r.ok) {
         const t = await r.text();
         throw new Error(t || "ошибка");
@@ -339,18 +358,19 @@
 
   // ============= PROFILE =============
   async function refreshProfile() {
-    if (!IS_TG) {
+    if (!isAuthed()) {
       $("#vm-pf-name").textContent = "Гость";
-      $("#vm-pf-id").textContent = "Открой в Telegram, чтобы видеть баланс";
+      $("#vm-pf-id").textContent = "Войди через бота, чтобы видеть баланс";
       $("#vm-pf-avatar").textContent = "👤";
       $("#vm-pf-balance").textContent = "—";
       $("#vm-pf-orders").textContent = "0";
       $("#vm-pf-refs").textContent = "0";
       $("#vm-pf-spent").textContent = "—";
-      $("#vm-pf-ref-link").value = BOT_LINK;
-      $("#vm-pf-ref-stats").textContent = "Реферальная ссылка доступна в боте.";
+      $("#vm-pf-ref-link").value = "";
+      $("#vm-pf-ref-link").placeholder = "Нажми «Войти» вверху";
+      $("#vm-pf-ref-stats").textContent = "Чтобы видеть реф ссылку, войди.";
       const root = $("#vm-pf-orders-list");
-      root.innerHTML = '<div class="vm-empty">Для заказов открой магазин в боте Telegram</div>';
+      root.innerHTML = '<div class="vm-empty">Нажми «Войти» чтобы увидеть заказы</div>';
       return;
     }
     try {
@@ -376,7 +396,14 @@
       $("#vm-pf-ref-stats").textContent = `+${ref.bonus}₽ за каждого друга, купившего на ${ref.threshold}₽. Приведено: ${ref.referrals} · Заработано: ${ref.earned_pretty}`;
       renderOrders(orders.orders);
     } catch (e) {
-      toast("Не удалось загрузить профиль: " + e.message, "error");
+      if (e.status === 401 && webSession) {
+        // Session was rejected / expired on server. Clear & require login again.
+        webSession = ""; localStorage.removeItem(SESSION_KEY); updateLoginButton();
+        toast("Сессия истекла, войди заново", "error");
+        refreshProfile();
+      } else {
+        toast("Не удалось загрузить профиль: " + e.message, "error");
+      }
     }
   }
   function renderOrders(list) {
@@ -403,7 +430,7 @@
   }
 
   $("#vm-pf-ref-copy").addEventListener("click", () => {
-    if (!IS_TG) { openBot("Реф ссылка — в боте"); return; }
+    if (!requireAuth("ref")) return;
     if (!referral) return;
     navigator.clipboard.writeText(referral.link).then(
       () => toast("Ссылка скопирована", "success"),
@@ -411,7 +438,7 @@
     );
   });
   $("#vm-pf-ref-share").addEventListener("click", () => {
-    if (!IS_TG) { openBot("Реф ссылка — в боте"); return; }
+    if (!requireAuth("ref")) return;
     if (!referral) return;
     const url = "https://t.me/share/url?url=" + encodeURIComponent(referral.link) +
                 "&text=" + encodeURIComponent(`🛒 VavilonMarket — донат дешевле. Регайся по моей ссылке и получи бонус.`);
@@ -419,8 +446,61 @@
     else window.open(url, "_blank");
   });
 
+  // ============= LOGIN FLOW (browser only) =============
+  let _loginPoll = null;
+  function stopLoginPolling() { if (_loginPoll) { clearInterval(_loginPoll); _loginPoll = null; } }
+  async function doLogout() {
+    try { await api("/api/web/logout", { method: "POST" }); } catch (_) {}
+    webSession = ""; localStorage.removeItem(SESSION_KEY);
+    updateLoginButton(); me = null; referral = null; refreshProfile();
+    toast("Вышел из аккаунта", "success");
+  }
+  const _loginSubmit = document.getElementById("vm-login-submit");
+  if (_loginSubmit) {
+    _loginSubmit.addEventListener("click", async () => {
+      const raw = (document.getElementById("vm-login-username").value || "").trim();
+      if (raw.length < 3) { toast("Введи свой @username", "error"); return; }
+      _loginSubmit.disabled = true; _loginSubmit.textContent = "Отправляем...";
+      try {
+        const r = await fetch("/api/web/login_start", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: raw }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) { toast(data.detail || "Ошибка", "error"); return; }
+        const pendingToken = data.token;
+        document.getElementById("vm-login-step1").style.display = "none";
+        document.getElementById("vm-login-step2").style.display = "";
+        stopLoginPolling();
+        let attempts = 0;
+        _loginPoll = setInterval(async () => {
+          attempts += 1;
+          if (attempts > 120) { stopLoginPolling(); toast("Сессия истекла", "error"); return; }
+          try {
+            const rs = await fetch("/api/web/login_status?token=" + encodeURIComponent(pendingToken));
+            const ds = await rs.json();
+            if (ds.status === "confirmed") {
+              stopLoginPolling();
+              webSession = pendingToken; localStorage.setItem(SESSION_KEY, webSession);
+              updateLoginButton(); closeSheet();
+              toast("Привет! Сессия активна", "success");
+              await refreshProfile();
+            } else if (ds.status === "rejected" || ds.status === "expired") {
+              stopLoginPolling();
+              toast("Вход отклонён", "error");
+              document.getElementById("vm-login-step1").style.display = "";
+              document.getElementById("vm-login-step2").style.display = "none";
+            }
+          } catch (_) {}
+        }, 1500);
+      } catch (e) { toast(e.message || "Ошибка", "error"); }
+      finally { _loginSubmit.disabled = false; _loginSubmit.textContent = "Отправить код в Telegram"; }
+    });
+  }
+
   // ============= INIT =============
   initSlider();
   loadCatalog();
+  updateLoginButton();
   refreshProfile();
 })();

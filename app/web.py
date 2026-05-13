@@ -19,6 +19,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from sqlalchemy import func, select as sql_select
+
 from .catalog import (
     BRAWL_PACKS,
     CATEGORIES,
@@ -35,7 +37,7 @@ from .catalog import (
     format_rub,
 )
 from .config import settings
-from .db import CryptoInvoice, SessionLocal, get_or_create_user, init_db
+from .db import CryptoInvoice, SessionLocal, User, WebSession, get_or_create_user, init_db
 from .payments import (
     CryptoPayClient,
     CryptoPayError,
@@ -78,30 +80,50 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 # ---------------------------------------------------------------------------
-# Auth dependency — validates Telegram WebApp initData passed via header.
+# Auth dependency — validates Telegram WebApp initData OR a browser session.
 # ---------------------------------------------------------------------------
-async def require_user(x_init_data: str = Header(default="", alias="X-Init-Data")) -> Any:
+async def require_user(
+    x_init_data: str = Header(default="", alias="X-Init-Data"),
+    x_web_session: str = Header(default="", alias="X-Web-Session"),
+) -> Any:
     if not settings.bot_token:
         raise HTTPException(status_code=500, detail="bot not configured")
-    if not x_init_data:
-        raise HTTPException(status_code=401, detail="open this page from the Telegram bot")
-    try:
-        tg_user = parse_init_data(x_init_data, settings.bot_token)
-    except WebAppAuthError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
 
-    async with SessionLocal() as session:
-        user = await get_or_create_user(
-            session,
-            tg_user.id,
-            username=tg_user.username,
-            first_name=tg_user.first_name,
-            ref_code=tg_user.start_param,
-        )
-        await session.commit()
-        # Detach from session before returning
-        await session.refresh(user)
-        return user
+    # Telegram Mini App authentication via initData.
+    if x_init_data:
+        try:
+            tg_user = parse_init_data(x_init_data, settings.bot_token)
+        except WebAppAuthError as exc:
+            raise HTTPException(status_code=401, detail=str(exc)) from exc
+        async with SessionLocal() as session:
+            user = await get_or_create_user(
+                session,
+                tg_user.id,
+                username=tg_user.username,
+                first_name=tg_user.first_name,
+                ref_code=tg_user.start_param,
+            )
+            await session.commit()
+            await session.refresh(user)
+            return user
+
+    # Browser session authentication via /api/web/login_start → bot confirm.
+    if x_web_session:
+        async with SessionLocal() as session:
+            row = (
+                await session.execute(
+                    sql_select(WebSession).where(WebSession.token == x_web_session)
+                )
+            ).scalar_one_or_none()
+            if row is None or row.status != "confirmed" or row.user_id is None:
+                raise HTTPException(status_code=401, detail="web session invalid")
+            user = await session.get(User, row.user_id)
+            if user is None:
+                raise HTTPException(status_code=401, detail="user not found")
+            await session.refresh(user)
+            return user
+
+    raise HTTPException(status_code=401, detail="open this page from the Telegram bot or sign in")
 
 
 def _user_payload(user) -> dict[str, Any]:
@@ -146,6 +168,119 @@ async def index(request: Request) -> HTMLResponse:
 @app.get("/healthz")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Web-login (browser \u2192 confirm in Telegram bot) flow.
+# ---------------------------------------------------------------------------
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    cf = request.headers.get("cf-connecting-ip")
+    if cf:
+        return cf.strip()
+    return (request.client.host if request.client else "") or ""
+
+
+class LoginStartRequest(BaseModel):
+    username: str
+
+
+@app.post("/api/web/login_start")
+async def api_web_login_start(req: LoginStartRequest, request: Request) -> dict[str, Any]:
+    bot = _get_bot()
+    if bot is None:
+        raise HTTPException(status_code=503, detail="bot not running")
+    raw = req.username.strip().lstrip("@")
+    if len(raw) < 3 or len(raw) > 64 or not all(c.isalnum() or c == "_" for c in raw):
+        raise HTTPException(status_code=400, detail="\u043d\u0435\u0432\u0430\u043b\u0438\u0434\u043d\u044b\u0439 username")
+    uname = raw.lower()
+
+    async with SessionLocal() as session:
+        target = (
+            await session.execute(
+                sql_select(User).where(func.lower(User.username) == uname)
+            )
+        ).scalar_one_or_none()
+        if target is None:
+            raise HTTPException(
+                status_code=404,
+                detail="\u041d\u0435 \u043d\u0430\u0448\u0451\u043b. \u041d\u0430\u0436\u043c\u0438 /start \u0431\u043e\u0442\u0443 @Vavilon_Shop_Bot \u0432 Telegram \u0438 \u043f\u043e\u0432\u0442\u043e\u0440\u0438.",
+            )
+
+        token = _secrets.token_urlsafe(32)
+        ip = _client_ip(request)
+        ua = (request.headers.get("user-agent") or "")[:255]
+        ws = WebSession(
+            token=token,
+            username=uname,
+            user_id=target.id,
+            ip=ip,
+            user_agent=ua,
+            status="pending",
+        )
+        session.add(ws)
+        await session.commit()
+
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    short_token = token[:24]
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="\u2705 \u042d\u0442\u043e \u044f, \u0440\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u044c", callback_data=f"weblogin:ok:{short_token}"),
+                InlineKeyboardButton(text="\u26d4\ufe0f \u041d\u0435 \u044f", callback_data=f"weblogin:no:{short_token}"),
+            ]
+        ]
+    )
+    ua_short = (ua[:80] + "\u2026") if len(ua) > 80 else ua
+    try:
+        await bot.send_message(
+            target.id,
+            (
+                "\ud83d\udd10 <b>\u0412\u0445\u043e\u0434 \u043d\u0430 \u0441\u0430\u0439\u0442</b>\n\n"
+                f"\u041a\u0442\u043e-\u0442\u043e \u043f\u044b\u0442\u0430\u0435\u0442\u0441\u044f \u0432\u043e\u0439\u0442\u0438 \u0432 vavilonmarket.onrender.com\n"
+                f"\u041f\u043e\u0434 \u0442\u0432\u043e\u0438\u043c \u044e\u0437\u0435\u0440\u043d\u0435\u0439\u043c\u043e\u043c <code>@{raw}</code>.\n\n"
+                f"IP: <code>{ip or '\u043d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u0435\u043d'}</code>\n"
+                f"Browser: <code>{ua_short or '\u043d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u0435\u043d'}</code>\n\n"
+                "\u0415\u0441\u043b\u0438 \u044d\u0442\u043e \u0442\u044b \u2014 \u0440\u0430\u0437\u0440\u0435\u0448\u0438. \u0418\u043d\u0430\u0447\u0435 \u043e\u0442\u043a\u043b\u043e\u043d\u0438."
+            ),
+            reply_markup=kb,
+        )
+    except Exception:
+        logger.exception("Failed to send login confirmation to user %s", target.id)
+        raise HTTPException(
+            status_code=502,
+            detail="\u041d\u0435 \u0441\u043c\u043e\u0433 \u043d\u0430\u043f\u0438\u0441\u0430\u0442\u044c \u0432 Telegram. \u0421\u043d\u0430\u0447\u0430\u043b\u0430 /start \u0443 \u0431\u043e\u0442\u0430.",
+        )
+
+    return {"token": token, "ip": ip}
+
+
+@app.get("/api/web/login_status")
+async def api_web_login_status(token: str) -> dict[str, Any]:
+    async with SessionLocal() as session:
+        row = (
+            await session.execute(sql_select(WebSession).where(WebSession.token == token))
+        ).scalar_one_or_none()
+        if row is None:
+            return {"status": "missing"}
+        return {"status": row.status}
+
+
+@app.post("/api/web/logout")
+async def api_web_logout(x_web_session: str = Header(default="", alias="X-Web-Session")) -> dict[str, Any]:
+    if not x_web_session:
+        return {"ok": True}
+    async with SessionLocal() as session:
+        row = (
+            await session.execute(sql_select(WebSession).where(WebSession.token == x_web_session))
+        ).scalar_one_or_none()
+        if row is not None:
+            row.status = "expired"
+            await session.commit()
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
