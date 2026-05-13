@@ -110,9 +110,9 @@ def _user_payload(user) -> dict[str, Any]:
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "categories": CATEGORIES,
             "brawl_packs": BRAWL_PACKS,
             "clash_packs": CLASH_PACKS,
