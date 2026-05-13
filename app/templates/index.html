@@ -1,145 +1,353 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Vavilon Market</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>VavilonMarket — донат дешевле</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="/static/style.css" />
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<header class="topbar">
-  <div class="logo">🏛 <span>Vavilon Market</span></div>
-  <div class="balance" id="balance">— ₽</div>
+
+<header class="vm-header">
+  <div class="vm-logo">
+    <div class="vm-logo-mark">V</div>
+    <span>VavilonMarket</span>
+  </div>
+  <div class="vm-header-actions">
+    <button class="vm-iconbtn" data-action="open-support" title="Поддержка">💬</button>
+  </div>
 </header>
 
-<nav class="tabs">
-  <button class="tab active" data-tab="shop">🛒 Магазин</button>
-  <button class="tab" data-tab="balance">💰 Баланс</button>
-  <button class="tab" data-tab="orders">📦 Заказы</button>
-  <button class="tab" data-tab="ref">👥 Друзья</button>
-  <button class="tab" data-tab="review">⭐ Отзыв</button>
+<!-- =================== HOME =================== -->
+<section class="vm-page active" data-page="home">
+  <div class="vm-slider-wrap">
+    <div class="vm-slider" id="vm-slider">
+      <div class="vm-slide vm-slide-1" data-action="go-cat" data-cat="robux">
+        <div class="vm-slide-glow" style="background:#22c55e;top:-30%;right:-20%;width:280px;height:280px"></div>
+        <div class="vm-slide-stars"><span></span><span></span><span></span><span></span></div>
+        <div class="vm-slide-content">
+          <div class="vm-slide-title">ROBUX</div>
+          <div class="vm-slide-sub">100 ₽ ➜ 125 🪙 · мгновенно</div>
+        </div>
+        <div class="vm-slide-badge">-20%</div>
+      </div>
+      <div class="vm-slide vm-slide-2" data-action="go-cat" data-cat="stars">
+        <div class="vm-slide-glow" style="background:#f59e0b;top:-20%;left:-20%;width:260px;height:260px"></div>
+        <div class="vm-slide-stars"><span></span><span></span><span></span><span></span></div>
+        <div class="vm-slide-content">
+          <div class="vm-slide-title">TG STARS</div>
+          <div class="vm-slide-sub">подарком на @username · 100 ⭐ = 150 ₽</div>
+        </div>
+        <div class="vm-slide-badge">HOT</div>
+      </div>
+      <div class="vm-slide vm-slide-3" data-action="go-cat" data-cat="brawl">
+        <div class="vm-slide-glow" style="background:#3b82f6;bottom:-30%;right:-10%;width:280px;height:280px"></div>
+        <div class="vm-slide-stars"><span></span><span></span><span></span><span></span></div>
+        <div class="vm-slide-content">
+          <div class="vm-slide-title">BRAWL · CLASH</div>
+          <div class="vm-slide-sub">гемы в Brawl Stars и Clash Royale</div>
+        </div>
+        <div class="vm-slide-badge">2x</div>
+      </div>
+    </div>
+    <div class="vm-slider-dots" id="vm-slider-dots"></div>
+  </div>
+
+  <div class="vm-trust-bar">
+    <div class="vm-trust-item"><div class="vm-trust-num" id="vm-trust-orders">10k+</div><div class="vm-trust-label">заказов</div></div>
+    <div class="vm-trust-item"><div class="vm-trust-num">24/7</div><div class="vm-trust-label">поддержка</div></div>
+    <div class="vm-trust-item"><div class="vm-trust-num">1 мин</div><div class="vm-trust-label">доставка</div></div>
+    <div class="vm-trust-item"><div class="vm-trust-num">SSL</div><div class="vm-trust-label">безопасно</div></div>
+  </div>
+
+  <div class="vm-section">
+    <div class="vm-section-title"><span class="icon">🛒</span> Магазин</div>
+    <div class="vm-cat-grid">
+      <div class="vm-cat-card vm-cat-robux" data-action="go-cat" data-cat="robux">
+        <div class="vm-cat-bg">🟢</div>
+        <div class="vm-cat-label">Robux</div>
+      </div>
+      <div class="vm-cat-card vm-cat-stars" data-action="go-cat" data-cat="stars">
+        <div class="vm-cat-bg">⭐</div>
+        <div class="vm-cat-label">TG Stars</div>
+      </div>
+      <div class="vm-cat-card vm-cat-brawl" data-action="go-cat" data-cat="brawl">
+        <div class="vm-cat-bg">🎮</div>
+        <div class="vm-cat-label">Brawl Stars</div>
+      </div>
+      <div class="vm-cat-card vm-cat-clash" data-action="go-cat" data-cat="clash">
+        <div class="vm-cat-bg">👑</div>
+        <div class="vm-cat-label">Clash Royale</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vm-section">
+    <div class="vm-section-title"><span class="icon">💎</span> Реферальная программа</div>
+    <div class="vm-ref-banner" data-action="go-page" data-page="profile">
+      <div class="vm-ref-text">
+        <div class="vm-ref-title">Зови друзей — получай <span>+{{ referral_bonus }}₽</span></div>
+        <div class="vm-ref-sub">Друг покупает на {{ referral_threshold }}₽ → тебе бонус на баланс</div>
+      </div>
+      <div class="vm-ref-cta">Открыть →</div>
+    </div>
+  </div>
+
+  <div class="vm-section">
+    <div class="vm-section-title"><span class="icon">📢</span> Полезное</div>
+    <div class="vm-info-list">
+      <a href="https://t.me/{{ news_channel.lstrip('@') }}" target="_blank" class="vm-info-item">
+        <div class="vm-info-icon">📣</div>
+        <div class="vm-info-text">Канал {{ news_channel }}</div>
+        <div class="vm-info-arrow">›</div>
+      </a>
+      <div class="vm-info-item" data-action="open-review">
+        <div class="vm-info-icon">⭐</div>
+        <div class="vm-info-text">Оставить отзыв</div>
+        <div class="vm-info-arrow">›</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:90px"></div>
+</section>
+
+<!-- =================== CATALOG =================== -->
+<section class="vm-page" data-page="catalog">
+  <div class="vm-tabs" id="vm-cat-tabs">
+    <div class="vm-tab active" data-cat="robux">🟢 Robux</div>
+    <div class="vm-tab" data-cat="stars">⭐ Stars</div>
+    <div class="vm-tab" data-cat="brawl">🎮 Brawl</div>
+    <div class="vm-tab" data-cat="clash">👑 Clash</div>
+  </div>
+
+  <!-- Linear: Robux / Stars -->
+  <div class="vm-tab-content active" data-cat="robux">
+    <div class="vm-linear-card">
+      <div class="vm-linear-head">
+        <div class="vm-linear-emoji">🟢</div>
+        <div>
+          <div class="vm-linear-title">Robux</div>
+          <div class="vm-linear-rate">100 робуксов = 80 ₽</div>
+        </div>
+      </div>
+      <div class="vm-spinner">
+        <button data-spin="-1">−</button>
+        <div class="vm-spinner-val"><span id="vm-robux-qty">{{ robux_min }}</span><div class="vm-spinner-unit">робуксов</div></div>
+        <button data-spin="+1">+</button>
+      </div>
+      <div class="vm-preset-grid" id="vm-robux-presets"></div>
+      <div class="vm-linear-result">
+        <div class="vm-linear-price" id="vm-robux-price">{{ robux_min * 80 // 100 }}₽</div>
+        <div class="vm-linear-hint">Цена в рублях с учётом скидки</div>
+      </div>
+      <div class="vm-input-row">
+        <input type="number" class="vm-input" id="vm-robux-input" placeholder="Своё количество (кратно 100)" min="100" step="100">
+      </div>
+      <button class="vm-cta" id="vm-robux-buy">Купить →</button>
+    </div>
+  </div>
+
+  <div class="vm-tab-content" data-cat="stars">
+    <div class="vm-linear-card">
+      <div class="vm-linear-head">
+        <div class="vm-linear-emoji">⭐</div>
+        <div>
+          <div class="vm-linear-title">Telegram Stars</div>
+          <div class="vm-linear-rate">100 ⭐ = 150 ₽ · подарком на @username</div>
+        </div>
+      </div>
+      <div class="vm-spinner">
+        <button data-spin="-1">−</button>
+        <div class="vm-spinner-val"><span id="vm-stars-qty">{{ stars_min }}</span><div class="vm-spinner-unit">звёзд</div></div>
+        <button data-spin="+1">+</button>
+      </div>
+      <div class="vm-preset-grid" id="vm-stars-presets"></div>
+      <div class="vm-linear-result">
+        <div class="vm-linear-price" id="vm-stars-price">{{ stars_min * 150 // 100 }}₽</div>
+        <div class="vm-linear-hint">При оформлении укажи @username</div>
+      </div>
+      <div class="vm-input-row">
+        <input type="number" class="vm-input" id="vm-stars-input" placeholder="Своё количество (кратно 100)" min="100" step="100">
+      </div>
+      <button class="vm-cta" id="vm-stars-buy">Купить →</button>
+    </div>
+  </div>
+
+  <!-- Brawl / Clash packs -->
+  <div class="vm-tab-content" data-cat="brawl">
+    <div class="vm-mini-banner vm-mini-banner-brawl">
+      <div class="vm-mini-banner-text">BRAWL STARS</div>
+      <div class="vm-mini-banner-sub">наценка x2 · доставка через подарок</div>
+    </div>
+    <div class="vm-product-list" id="vm-brawl-list"></div>
+  </div>
+
+  <div class="vm-tab-content" data-cat="clash">
+    <div class="vm-mini-banner vm-mini-banner-clash">
+      <div class="vm-mini-banner-text">CLASH ROYALE</div>
+      <div class="vm-mini-banner-sub">наценка x2 · доставка через подарок</div>
+    </div>
+    <div class="vm-product-list" id="vm-clash-list"></div>
+  </div>
+
+  <div style="height:90px"></div>
+</section>
+
+<!-- =================== PROFILE =================== -->
+<section class="vm-page" data-page="profile">
+  <div class="vm-section">
+    <div class="vm-profile-card">
+      <div class="vm-profile-avatar" id="vm-pf-avatar">👤</div>
+      <div class="vm-profile-name" id="vm-pf-name">—</div>
+      <div class="vm-profile-id" id="vm-pf-id">TG ID: —</div>
+      <div class="vm-profile-stats">
+        <div class="vm-profile-stat"><div class="vm-profile-stat-num" id="vm-pf-orders">0</div><div class="vm-profile-stat-label">заказов</div></div>
+        <div class="vm-profile-stat"><div class="vm-profile-stat-num" id="vm-pf-refs">0</div><div class="vm-profile-stat-label">рефералов</div></div>
+        <div class="vm-profile-stat"><div class="vm-profile-stat-num" id="vm-pf-spent">0₽</div><div class="vm-profile-stat-label">потрачено</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vm-section">
+    <div class="vm-balance-card">
+      <div>
+        <div class="vm-balance-label">Баланс</div>
+        <div class="vm-balance-amount" id="vm-pf-balance">0₽</div>
+      </div>
+      <button class="vm-balance-btn" data-action="open-deposit">Пополнить</button>
+    </div>
+  </div>
+
+  <div class="vm-section">
+    <div class="vm-section-title"><span class="icon">🔗</span> Реферальная программа</div>
+    <div class="vm-ref-card">
+      <div class="vm-ref-card-row">
+        <div class="vm-ref-card-info">
+          <div class="vm-ref-card-title">Приглашай → получай бонусы</div>
+          <div class="vm-ref-card-sub" id="vm-pf-ref-stats">+{{ referral_bonus }}₽ за каждого друга, купившего на {{ referral_threshold }}₽</div>
+        </div>
+      </div>
+      <div class="vm-ref-link-row">
+        <input class="vm-input" id="vm-pf-ref-link" readonly value="Загрузка...">
+        <button class="vm-mini-btn" id="vm-pf-ref-copy">Копировать</button>
+      </div>
+      <div class="vm-ref-share">
+        <button class="vm-mini-btn vm-tg-btn" id="vm-pf-ref-share">Поделиться в Telegram</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="vm-section">
+    <div class="vm-section-title"><span class="icon">📦</span> Мои заказы</div>
+    <div class="vm-orders-list" id="vm-pf-orders-list">
+      <div class="vm-empty">Заказов пока нет</div>
+    </div>
+  </div>
+
+  <div class="vm-section">
+    <div class="vm-info-list">
+      <a href="https://t.me/{{ news_channel.lstrip('@') }}" target="_blank" class="vm-info-item">
+        <div class="vm-info-icon">📢</div>
+        <div class="vm-info-text">Наш канал {{ news_channel }}</div>
+        <div class="vm-info-arrow">›</div>
+      </a>
+      <div class="vm-info-item" data-action="open-review">
+        <div class="vm-info-icon">⭐</div>
+        <div class="vm-info-text">Оставить отзыв</div>
+        <div class="vm-info-arrow">›</div>
+      </div>
+      <div class="vm-info-item" data-action="open-support">
+        <div class="vm-info-icon">💬</div>
+        <div class="vm-info-text">Поддержка</div>
+        <div class="vm-info-arrow">›</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:90px"></div>
+</section>
+
+<!-- =================== BOTTOM NAV =================== -->
+<nav class="vm-bottom-nav">
+  <div class="vm-bn-item active" data-page="home"><div class="vm-bn-icon">🏠</div><div class="vm-bn-label">Главная</div></div>
+  <div class="vm-bn-item" data-page="catalog"><div class="vm-bn-icon">🎮</div><div class="vm-bn-label">Каталог</div></div>
+  <div class="vm-bn-item" data-page="profile"><div class="vm-bn-icon">👤</div><div class="vm-bn-label">Профиль</div></div>
 </nav>
 
-<main>
-  <!-- SHOP TAB -->
-  <section class="tab-content active" data-tab="shop">
-    <h2>Категории</h2>
-    <div class="cards">
-      {% for c in categories %}
-      <button class="card" data-category="{{ c.key }}">
-        <span class="card-emoji">{{ c.emoji }}</span>
-        <span class="card-title">{{ c.title }}</span>
-        <span class="card-sub">{{ c.description }}</span>
-      </button>
-      {% endfor %}
-    </div>
+<!-- =================== SHEETS =================== -->
+<div class="vm-overlay" id="vm-overlay"></div>
 
-    <!-- Robux / Stars spinner -->
-    <div class="modal hidden" id="linear-modal">
-      <div class="modal-body">
-        <button class="close" id="linear-close">×</button>
-        <h3 id="linear-title"></h3>
-        <p class="muted" id="linear-rate"></p>
-        <div class="spinner">
-          <button data-step="-5">−<span data-bigstep>500</span></button>
-          <button data-step="-1">−</button>
-          <div class="qty" id="linear-qty">100</div>
-          <button data-step="1">+</button>
-          <button data-step="5">+<span data-bigstep>500</span></button>
-        </div>
-        <input type="number" id="linear-input" placeholder="Своё количество" />
-        <div class="total">К оплате: <b id="linear-price">80₽</b></div>
-        <button class="primary" id="linear-buy">Купить</button>
-      </div>
-    </div>
+<!-- target sheet -->
+<div class="vm-sheet" id="vm-target-sheet">
+  <div class="vm-sheet-handle"></div>
+  <div class="vm-sheet-title" id="vm-target-title">Куда доставить</div>
+  <div class="vm-sheet-sub" id="vm-target-sub">Укажи ник/ID получателя</div>
+  <input class="vm-input vm-input-lg" id="vm-target-input" placeholder="@username или Roblox ID">
+  <div class="vm-sheet-preview" id="vm-target-preview">—</div>
+  <button class="vm-cta" id="vm-target-submit">Оплатить с баланса</button>
+  <button class="vm-secondary" id="vm-target-close">Отмена</button>
+</div>
 
-    <!-- Pack picker -->
-    <div class="modal hidden" id="packs-modal">
-      <div class="modal-body">
-        <button class="close" id="packs-close">×</button>
-        <h3 id="packs-title">Наборы</h3>
-        <div class="pack-list" id="packs-list"></div>
-      </div>
-    </div>
+<!-- deposit sheet -->
+<div class="vm-sheet" id="vm-deposit-sheet">
+  <div class="vm-sheet-handle"></div>
+  <div class="vm-sheet-title">Пополнение баланса</div>
+  <div class="vm-sheet-sub">CryptoBot — Visa / Mastercard / СБП / крипта</div>
+  <div class="vm-preset-grid" id="vm-deposit-presets"></div>
+  <div class="vm-input-row">
+    <input type="number" class="vm-input" id="vm-deposit-input" placeholder="Своя сумма (от {{ deposit_min }}₽)" min="{{ deposit_min }}" max="{{ deposit_max }}" step="50">
+  </div>
+  <button class="vm-cta" id="vm-deposit-submit">Создать счёт</button>
+  <button class="vm-secondary" id="vm-deposit-close">Отмена</button>
+</div>
 
-    <!-- Target prompt -->
-    <div class="modal hidden" id="target-modal">
-      <div class="modal-body">
-        <button class="close" id="target-close">×</button>
-        <h3 id="target-title">Доставка</h3>
-        <p class="muted" id="target-hint"></p>
-        <input type="text" id="target-input" placeholder="" />
-        <div class="total">К оплате: <b id="target-price">—</b></div>
-        <button class="primary" id="target-confirm">Подтвердить покупку</button>
-      </div>
-    </div>
-  </section>
+<!-- review sheet -->
+<div class="vm-sheet" id="vm-review-sheet">
+  <div class="vm-sheet-handle"></div>
+  <div class="vm-sheet-title">Оставь отзыв</div>
+  <div class="vm-sheet-sub">Отзыв уйдёт в {{ news_channel }} автоматически</div>
+  <div class="vm-stars-rating" id="vm-review-stars">
+    <span data-rate="1">★</span><span data-rate="2">★</span><span data-rate="3">★</span><span data-rate="4">★</span><span data-rate="5">★</span>
+  </div>
+  <textarea class="vm-input vm-textarea" id="vm-review-text" placeholder="Что понравилось / не понравилось"></textarea>
+  <label class="vm-file">
+    <input type="file" id="vm-review-photo" accept="image/*">
+    <span>📎 Прикрепить скриншот</span>
+  </label>
+  <button class="vm-cta" id="vm-review-submit">Отправить</button>
+  <button class="vm-secondary" id="vm-review-close">Отмена</button>
+</div>
 
-  <!-- BALANCE TAB -->
-  <section class="tab-content" data-tab="balance">
-    <h2>Пополнение баланса</h2>
-    <p class="muted">Оплата через @CryptoBot (USDT, TON, BTC, ETH и др.). Зачисление автоматически после оплаты.</p>
-    <div class="presets">
-      {% for amount in deposit_presets %}
-        <button class="preset" data-amount="{{ amount }}">{{ amount }}₽</button>
-      {% endfor %}
-    </div>
-    <div class="custom-row">
-      <input type="number" id="deposit-amount" min="{{ deposit_min }}" max="{{ deposit_max }}" placeholder="Своя сумма ({{ deposit_min }}–{{ deposit_max }}₽)" />
-      <button class="primary" id="deposit-go">Пополнить</button>
-    </div>
-    <div id="deposit-result"></div>
-  </section>
+<!-- support sheet -->
+<div class="vm-sheet" id="vm-support-sheet">
+  <div class="vm-sheet-handle"></div>
+  <div class="vm-sheet-title">Поддержка</div>
+  <div class="vm-sheet-sub">Связь с владельцем магазина</div>
+  <a class="vm-cta" target="_blank" href="https://t.me/{{ news_channel.lstrip('@') }}">Написать в канал {{ news_channel }}</a>
+  <button class="vm-secondary" id="vm-support-close">Закрыть</button>
+</div>
 
-  <!-- ORDERS TAB -->
-  <section class="tab-content" data-tab="orders">
-    <h2>Мои заказы</h2>
-    <div id="orders-list" class="orders"></div>
-  </section>
-
-  <!-- REFERRAL TAB -->
-  <section class="tab-content" data-tab="ref">
-    <h2>Реферальная программа</h2>
-    <p class="muted">За каждую покупку друга от {{ referral_threshold }}₽ ты получаешь +{{ referral_bonus }}₽ на баланс.</p>
-    <div class="ref-box">
-      <div class="ref-row"><span>Твой код:</span> <b id="ref-code">—</b></div>
-      <div class="ref-row"><span>Ссылка:</span> <input id="ref-link" readonly /></div>
-      <button class="primary" id="ref-share">Поделиться</button>
-      <div class="ref-stats">
-        <div><span>Приглашено</span><b id="ref-count">—</b></div>
-        <div><span>Заработано</span><b id="ref-earned">— ₽</b></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- REVIEW TAB -->
-  <section class="tab-content" data-tab="review">
-    <h2>Оставить отзыв</h2>
-    <p class="muted">Отзыв улетит в канал <a href="https://t.me/{{ news_channel|replace('@','') }}" target="_blank">{{ news_channel }}</a>.</p>
-    <div class="stars" id="rating">
-      <span data-r="1">☆</span><span data-r="2">☆</span><span data-r="3">☆</span><span data-r="4">☆</span><span data-r="5">☆</span>
-    </div>
-    <textarea id="review-text" rows="4" placeholder="Как прошла покупка?"></textarea>
-    <label class="file-label">
-      <input type="file" id="review-photo" accept="image/*" />
-      <span>📎 Прикрепить скриншот</span>
-    </label>
-    <div id="review-file-name" class="muted"></div>
-    <button class="primary" id="review-submit">Отправить отзыв</button>
-    <div id="review-result"></div>
-  </section>
-</main>
-
-<div id="toast" class="toast"></div>
+<div id="vm-toast" class="vm-toast"></div>
 
 <script>
 window.__CFG__ = {
+  robuxMin: {{ robux_min }},
+  robuxMax: {{ robux_max }},
   robuxStep: {{ robux_step }},
+  starsMin: {{ stars_min }},
+  starsMax: {{ stars_max }},
   starsStep: {{ stars_step }},
-  robuxMin: {{ robux_min }}, robuxMax: {{ robux_max }},
-  starsMin: {{ stars_min }}, starsMax: {{ stars_max }},
-  depositMin: {{ deposit_min }}, depositMax: {{ deposit_max }},
+  depositPresets: {{ deposit_presets|tojson }},
+  depositMin: {{ deposit_min }},
+  depositMax: {{ deposit_max }},
+  referralBonus: {{ referral_bonus }},
+  referralThreshold: {{ referral_threshold }},
+  newsChannel: {{ news_channel|tojson }},
 };
 </script>
 <script src="/static/app.js"></script>

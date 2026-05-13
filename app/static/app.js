@@ -1,364 +1,396 @@
 /* Vavilon Market — Telegram Mini App frontend */
 (function () {
   const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
-  if (tg) {
-    tg.expand();
-    tg.ready();
-  }
-
+  if (tg) { try { tg.expand(); tg.ready(); tg.setHeaderColor && tg.setHeaderColor('#0d1117'); } catch (_) {} }
   const initData = tg ? tg.initData : "";
-  const CFG = window.__CFG__;
-  const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-  let user = null;
-  let catalog = null;
-  let currentLinear = null; // {kind, qty}
-  let currentPack = null; // sku
-  let currentPreview = null;
-  let currentRating = 0;
+  const CFG = window.__CFG__ || {};
 
-  function toast(text, isError) {
-    const el = $("#toast");
-    el.textContent = text;
-    el.className = "toast show" + (isError ? " error" : "");
-    setTimeout(() => { el.className = "toast"; }, 2600);
-  }
+  const $ = (s, root) => (root || document).querySelector(s);
+  const $$ = (s, root) => Array.from((root || document).querySelectorAll(s));
+
+  let me = null;
+  let catalog = null;
+  let referral = null;
+  let activeSheet = null;
+  let robux = { qty: CFG.robuxMin };
+  let stars = { qty: CFG.starsMin };
+  let depositAmount = null;
+  let buyDraft = null; // { sku, quantity, price, title, kind }
+  let reviewRating = 0;
+  let reviewPhoto = null;
 
   function fmt(n) {
     n = Number(n);
-    if (Math.abs(n - Math.round(n)) < 0.005) return Math.round(n) + "₽";
-    return n.toFixed(2) + "₽";
+    if (Math.abs(n - Math.round(n)) < 0.005) return Math.round(n).toLocaleString('ru-RU') + "₽";
+    return n.toFixed(2).replace('.', ',') + "₽";
   }
 
-  async function api(path, options) {
-    options = options || {};
-    options.headers = Object.assign(
-      { "X-Init-Data": initData },
-      options.headers || {}
-    );
-    if (options.json !== undefined) {
-      options.body = JSON.stringify(options.json);
-      options.headers["Content-Type"] = "application/json";
-      delete options.json;
+  function toast(text, kind) {
+    const el = $("#vm-toast");
+    el.textContent = text;
+    el.className = "vm-toast show" + (kind === 'error' ? " error" : (kind === 'success' ? " success" : ""));
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => { el.className = "vm-toast"; }, 2800);
+  }
+
+  async function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ "X-Init-Data": initData }, opts.headers || {});
+    if (opts.json !== undefined) {
+      opts.body = JSON.stringify(opts.json);
+      opts.headers["Content-Type"] = "application/json";
+      delete opts.json;
     }
-    const resp = await fetch(path, options);
-    const text = await resp.text();
+    const r = await fetch(path, opts);
+    const text = await r.text();
     let data;
     try { data = text ? JSON.parse(text) : null; } catch (_) { data = { raw: text }; }
-    if (!resp.ok) {
-      const err = new Error(data && data.detail || resp.statusText);
-      err.status = resp.status;
-      err.data = data;
-      throw err;
+    if (!r.ok) {
+      const e = new Error((data && (data.detail || data.error)) || r.statusText);
+      e.status = r.status; e.data = data;
+      throw e;
     }
     return data;
   }
 
-  // ---------------- Tabs ----------------
-  $$(".tab").forEach((t) => {
-    t.addEventListener("click", () => {
-      $$(".tab").forEach((x) => x.classList.remove("active"));
-      t.classList.add("active");
-      const tab = t.dataset.tab;
-      $$(".tab-content").forEach((c) => c.classList.toggle("active", c.dataset.tab === tab));
-      if (tab === "orders") loadOrders();
-      else if (tab === "ref") loadRef();
+  // ============= NAVIGATION =============
+  function showPage(page) {
+    $$(".vm-page").forEach(p => p.classList.toggle("active", p.dataset.page === page));
+    $$(".vm-bn-item").forEach(b => b.classList.toggle("active", b.dataset.page === page));
+    window.scrollTo({ top: 0, behavior: "instant" });
+    if (page === "profile") refreshProfile();
+  }
+  $$(".vm-bn-item").forEach(b => b.addEventListener("click", () => showPage(b.dataset.page)));
+
+  // category from home → catalog tab
+  function showCat(cat) {
+    showPage("catalog");
+    $$(".vm-tab").forEach(t => t.classList.toggle("active", t.dataset.cat === cat));
+    $$(".vm-tab-content").forEach(c => c.classList.toggle("active", c.dataset.cat === cat));
+  }
+  $$(".vm-tab").forEach(t => t.addEventListener("click", () => showCat(t.dataset.cat)));
+
+  // delegate "data-action"
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-action]");
+    if (!t) return;
+    const act = t.dataset.action;
+    if (act === "go-cat") showCat(t.dataset.cat);
+    else if (act === "go-page") showPage(t.dataset.page);
+    else if (act === "open-deposit") openSheet("vm-deposit-sheet");
+    else if (act === "open-review") openSheet("vm-review-sheet");
+    else if (act === "open-support") openSheet("vm-support-sheet");
+  });
+
+  // ============= SHEETS =============
+  function openSheet(id) {
+    closeSheet();
+    $("#vm-overlay").classList.add("active");
+    const sheet = document.getElementById(id);
+    sheet.classList.add("active");
+    activeSheet = sheet;
+  }
+  function closeSheet() {
+    if (activeSheet) activeSheet.classList.remove("active");
+    $("#vm-overlay").classList.remove("active");
+    activeSheet = null;
+  }
+  $("#vm-overlay").addEventListener("click", closeSheet);
+  $("#vm-target-close").addEventListener("click", closeSheet);
+  $("#vm-deposit-close").addEventListener("click", closeSheet);
+  $("#vm-review-close").addEventListener("click", closeSheet);
+  $("#vm-support-close").addEventListener("click", closeSheet);
+
+  // ============= SLIDER DOTS =============
+  function initSlider() {
+    const slider = $("#vm-slider");
+    const dots = $("#vm-slider-dots");
+    const slides = $$(".vm-slide", slider);
+    slides.forEach((_, i) => {
+      const d = document.createElement("div");
+      d.className = "vm-slider-dot" + (i === 0 ? " active" : "");
+      d.addEventListener("click", () => {
+        slides[i].scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      });
+      dots.appendChild(d);
     });
-  });
-
-  // ---------------- Shop ----------------
-  $$(".card").forEach((card) => {
-    card.addEventListener("click", () => openCategory(card.dataset.category));
-  });
-
-  function openCategory(key) {
-    if (key === "robux") openLinear("robux");
-    else if (key === "stars") openLinear("stars");
-    else openPacks(key);
-  }
-
-  function openLinear(kind) {
-    currentLinear = {
-      kind,
-      qty: kind === "robux" ? CFG.robuxMin : CFG.starsMin,
-    };
-    const isRobux = kind === "robux";
-    $("#linear-title").textContent = isRobux ? "🟢 Robux" : "⭐ Telegram Stars";
-    $("#linear-rate").textContent = isRobux ? "100 робуксов = 80₽" : "100 звёзд = 150₽";
-    const big = isRobux ? CFG.robuxStep * 5 : CFG.starsStep * 5;
-    $$('#linear-modal [data-bigstep]').forEach((el) => el.textContent = big);
-    $("#linear-modal").classList.remove("hidden");
-    renderLinear();
-  }
-  function renderLinear() {
-    const { kind, qty } = currentLinear;
-    const isRobux = kind === "robux";
-    const rate = isRobux ? 0.8 : 1.5;
-    $("#linear-qty").textContent = qty;
-    $("#linear-price").textContent = fmt(qty * rate);
-  }
-  $("#linear-close").addEventListener("click", () => $("#linear-modal").classList.add("hidden"));
-  $$('#linear-modal .spinner button').forEach((b) => {
-    b.addEventListener("click", () => {
-      if (!currentLinear) return;
-      const isRobux = currentLinear.kind === "robux";
-      const step = (isRobux ? CFG.robuxStep : CFG.starsStep) * Number(b.dataset.step);
-      const lo = isRobux ? CFG.robuxMin : CFG.starsMin;
-      const hi = isRobux ? CFG.robuxMax : CFG.starsMax;
-      currentLinear.qty = Math.max(lo, Math.min(hi, currentLinear.qty + step));
-      renderLinear();
+    slider.addEventListener("scroll", () => {
+      const w = slider.clientWidth;
+      const idx = Math.round(slider.scrollLeft / Math.max(1, w - 32));
+      $$(".vm-slider-dot", dots).forEach((d, i) => d.classList.toggle("active", i === idx));
     });
-  });
-  $("#linear-input").addEventListener("change", (e) => {
-    if (!currentLinear) return;
-    const isRobux = currentLinear.kind === "robux";
+  }
+
+  // ============= LINEAR (Robux / Stars) =============
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function renderRobux() {
+    $("#vm-robux-qty").textContent = robux.qty.toLocaleString('ru-RU');
+    $("#vm-robux-price").textContent = fmt(robux.qty * 0.8);
+    $$("#vm-robux-presets .vm-preset").forEach(p => p.classList.toggle("active", Number(p.dataset.v) === robux.qty));
+  }
+  function renderStars() {
+    $("#vm-stars-qty").textContent = stars.qty.toLocaleString('ru-RU');
+    $("#vm-stars-price").textContent = fmt(stars.qty * 1.5);
+    $$("#vm-stars-presets .vm-preset").forEach(p => p.classList.toggle("active", Number(p.dataset.v) === stars.qty));
+  }
+  function bindLinear(kind) {
+    const isRobux = kind === "robux";
+    const state = isRobux ? robux : stars;
     const step = isRobux ? CFG.robuxStep : CFG.starsStep;
     const lo = isRobux ? CFG.robuxMin : CFG.starsMin;
     const hi = isRobux ? CFG.robuxMax : CFG.starsMax;
-    let v = parseInt(e.target.value || 0, 10);
-    if (!v) return;
-    v = Math.max(lo, Math.min(hi, Math.floor(v / step) * step || step));
-    currentLinear.qty = v;
-    e.target.value = "";
-    renderLinear();
-  });
-  $("#linear-buy").addEventListener("click", async () => {
-    if (!currentLinear) return;
-    try {
-      const preview = await api("/api/preview", {
-        method: "POST",
-        json: { sku: currentLinear.kind, quantity: currentLinear.qty },
-      });
-      currentPreview = preview;
-      $("#linear-modal").classList.add("hidden");
-      openTarget(preview);
-    } catch (e) { toast(e.message, true); }
-  });
-
-  function openPacks(key) {
-    if (!catalog) return;
-    const packs = catalog[key] || [];
-    $("#packs-title").textContent = key === "brawl" ? "🎮 Brawl Stars" : "👑 Clash Royale";
-    const list = $("#packs-list");
-    list.innerHTML = "";
-    packs.forEach((p) => {
-      const el = document.createElement("button");
-      el.className = "pack-item";
-      el.innerHTML = `<span>${p.title}</span><b>${p.price_pretty}</b>`;
-      el.addEventListener("click", async () => {
-        try {
-          const preview = await api("/api/preview", {
-            method: "POST",
-            json: { sku: p.sku, quantity: 1 },
-          });
-          currentPreview = preview;
-          $("#packs-modal").classList.add("hidden");
-          openTarget(preview);
-        } catch (e) { toast(e.message, true); }
-      });
-      list.appendChild(el);
+    const presetEl = $(`#vm-${kind}-presets`);
+    const presets = isRobux ? [100, 400, 800, 1000, 2200, 4500] : [100, 250, 500, 1000, 2500, 5000];
+    presets.forEach(v => {
+      const b = document.createElement("div");
+      b.className = "vm-preset";
+      b.dataset.v = v;
+      b.textContent = v.toLocaleString('ru-RU');
+      b.addEventListener("click", () => { state.qty = v; isRobux ? renderRobux() : renderStars(); });
+      presetEl.appendChild(b);
     });
-    $("#packs-modal").classList.remove("hidden");
-  }
-  $("#packs-close").addEventListener("click", () => $("#packs-modal").classList.add("hidden"));
-
-  function openTarget(preview) {
-    $("#target-title").textContent = preview.title;
-    $("#target-price").textContent = preview.price_pretty;
-    const sku = preview.sku;
-    let hint = "Введи данные для доставки.";
-    let placeholder = "username / тег";
-    if (sku === "robux") { hint = "Введи свой никнейм Roblox (без @)."; placeholder = "RobloxNickname"; }
-    else if (sku === "stars") { hint = "Введи @username получателя звёзд."; placeholder = "@username"; }
-    else if (sku.startsWith("brawl_") || sku.startsWith("clash_")) {
-      hint = "Введи свой игровой тег (например #2YGQRJ9V) или почту Supercell ID.";
-      placeholder = "#тег или email";
-    }
-    $("#target-hint").textContent = hint;
-    const input = $("#target-input");
-    input.placeholder = placeholder;
-    input.value = "";
-    $("#target-modal").classList.remove("hidden");
-    setTimeout(() => input.focus(), 100);
-  }
-  $("#target-close").addEventListener("click", () => $("#target-modal").classList.add("hidden"));
-  $("#target-confirm").addEventListener("click", async () => {
-    if (!currentPreview) return;
-    const target = $("#target-input").value.trim();
-    if (target.length < 2) { toast("Введи данные доставки", true); return; }
-    const btn = $("#target-confirm");
-    btn.disabled = true;
-    try {
-      const res = await api("/api/buy", {
-        method: "POST",
-        json: { sku: currentPreview.sku, quantity: currentPreview.quantity, target },
+    const card = $(`#vm-${kind}-buy`).closest(".vm-linear-card");
+    $$(".vm-spinner button", card).forEach(b => {
+      b.addEventListener("click", () => {
+        const sign = b.dataset.spin === "+1" ? 1 : -1;
+        state.qty = clamp(state.qty + sign * step, lo, hi);
+        isRobux ? renderRobux() : renderStars();
       });
-      if (res.ok) {
-        toast(`Заказ #${res.order_id} принят ✅`);
-        user.balance = res.balance;
-        user.balance_pretty = res.balance_pretty;
-        $("#balance").textContent = res.balance_pretty;
-        $("#target-modal").classList.add("hidden");
+    });
+    const inp = $(`#vm-${kind}-input`);
+    inp.addEventListener("change", () => {
+      let v = parseInt(inp.value || "0", 10);
+      if (!v) return;
+      v = Math.round(v / step) * step;
+      v = clamp(v, lo, hi);
+      state.qty = v;
+      inp.value = "";
+      isRobux ? renderRobux() : renderStars();
+    });
+    $(`#vm-${kind}-buy`).addEventListener("click", () => startBuy({ sku: kind, quantity: state.qty, kind }));
+  }
+  bindLinear("robux"); bindLinear("stars"); renderRobux(); renderStars();
+
+  // ============= PACKS (Brawl / Clash) =============
+  async function loadCatalog() {
+    try {
+      catalog = await api("/api/catalog");
+      renderPacks();
+    } catch (e) { toast("Каталог не загрузился: " + e.message, "error"); }
+  }
+  function renderPacks() {
+    function render(listId, packs, emoji) {
+      const root = $(listId);
+      root.innerHTML = "";
+      packs.forEach(p => {
+        const el = document.createElement("div");
+        el.className = "vm-product-card";
+        el.innerHTML = `
+          <div class="vm-product-emoji">${emoji}</div>
+          <div class="vm-product-info">
+            <div class="vm-product-name">${p.title}</div>
+            <div class="vm-product-desc">SKU: ${p.sku}</div>
+          </div>
+          <div class="vm-product-price">${p.price_pretty}</div>
+        `;
+        el.addEventListener("click", () => startBuy({ sku: p.sku, quantity: 1, kind: p.sku.startsWith("brawl") ? "brawl" : "clash", title: p.title, price: p.price_pretty }));
+        root.appendChild(el);
+      });
+    }
+    render("#vm-brawl-list", catalog.brawl, "💎");
+    render("#vm-clash-list", catalog.clash, "💎");
+  }
+
+  // ============= BUY FLOW =============
+  async function startBuy(draft) {
+    if (!me) { toast("Открой через бота", "error"); return; }
+    try {
+      const preview = await api("/api/preview", { method: "POST", json: { sku: draft.sku, quantity: draft.quantity } });
+      buyDraft = Object.assign({}, draft, preview);
+      $("#vm-target-title").textContent = preview.title;
+      let sub = "";
+      if (draft.kind === "robux") sub = "Укажи Roblox username (логин в Roblox), куда отправить робуксы";
+      else if (draft.kind === "stars") sub = "Укажи @username получателя в Telegram (или свой)";
+      else sub = "Укажи свой @username в Telegram — мы свяжемся для доставки";
+      $("#vm-target-sub").textContent = sub;
+      $("#vm-target-preview").textContent = `${preview.title} — ${preview.price_pretty}. Будет списано с баланса.`;
+      $("#vm-target-input").value = (draft.kind === "stars" && me.username) ? "@" + me.username : "";
+      openSheet("vm-target-sheet");
+    } catch (e) { toast(e.message, "error"); }
+  }
+  $("#vm-target-submit").addEventListener("click", async () => {
+    if (!buyDraft) return;
+    const target = $("#vm-target-input").value.trim();
+    if (target.length < 2) { toast("Укажи получателя", "error"); return; }
+    try {
+      const r = await api("/api/buy", { method: "POST", json: { sku: buyDraft.sku, quantity: buyDraft.quantity, target } });
+      if (r.ok) {
+        toast("Заказ #" + r.order_id + " отправлен админу", "success");
+        closeSheet();
+        if (me) { me.balance = r.balance; me.balance_pretty = r.balance_pretty; refreshProfile(); }
+      } else if (r && r.error === "insufficient_balance") {
+        toast("Не хватает " + fmt(r.short) + " — пополни баланс", "error");
+        closeSheet();
+        openSheet("vm-deposit-sheet");
+      } else {
+        toast("Ошибка заказа", "error");
       }
     } catch (e) {
       if (e.status === 402) {
-        toast(`Не хватает ${fmt(e.data.short)} — пополни баланс`, true);
+        toast("Не хватает баланса — пополни", "error");
+        closeSheet();
+        openSheet("vm-deposit-sheet");
       } else {
-        toast(e.message || "Ошибка", true);
+        toast(e.message, "error");
       }
-    } finally {
-      btn.disabled = false;
     }
   });
 
-  // ---------------- Balance ----------------
-  $$('.preset').forEach((b) => {
-    b.addEventListener("click", () => {
-      $$('.preset').forEach((x) => x.classList.remove("active"));
-      b.classList.add("active");
-      $("#deposit-amount").value = b.dataset.amount;
-    });
-  });
-  $("#deposit-go").addEventListener("click", async () => {
-    const amount = parseFloat($("#deposit-amount").value);
-    if (!amount || amount < CFG.depositMin || amount > CFG.depositMax) {
-      toast(`Сумма должна быть от ${CFG.depositMin}₽ до ${CFG.depositMax}₽`, true);
-      return;
-    }
-    const btn = $("#deposit-go");
-    btn.disabled = true;
-    try {
-      const res = await api("/api/deposit", {
-        method: "POST",
-        json: { amount: String(amount) },
+  // ============= DEPOSIT FLOW =============
+  function initDepositPresets() {
+    const root = $("#vm-deposit-presets");
+    (CFG.depositPresets || [100, 250, 500, 1000, 2000, 5000]).forEach(v => {
+      const b = document.createElement("div");
+      b.className = "vm-preset";
+      b.dataset.v = v;
+      b.textContent = fmt(v);
+      b.addEventListener("click", () => {
+        depositAmount = v;
+        $("#vm-deposit-input").value = v;
+        $$("#vm-deposit-presets .vm-preset").forEach(x => x.classList.toggle("active", Number(x.dataset.v) === v));
       });
-      const html = `
-        <a href="${res.pay_url}" target="_blank" rel="noopener">💳 Оплатить ${res.amount_pretty}</a>
-        <p class="muted" style="margin-top:8px">После оплаты баланс зачислится автоматически в течение минуты.</p>
-      `;
-      $("#deposit-result").innerHTML = html;
-      if (tg && tg.openLink) {
-        tg.openLink(res.pay_url, { try_instant_view: false });
+      root.appendChild(b);
+    });
+    $("#vm-deposit-input").addEventListener("input", () => {
+      depositAmount = parseInt($("#vm-deposit-input").value || "0", 10);
+      $$("#vm-deposit-presets .vm-preset").forEach(x => x.classList.toggle("active", Number(x.dataset.v) === depositAmount));
+    });
+  }
+  initDepositPresets();
+  $("#vm-deposit-submit").addEventListener("click", async () => {
+    const amt = parseInt($("#vm-deposit-input").value || "0", 10);
+    if (!amt || amt < CFG.depositMin) { toast(`Минимум ${CFG.depositMin}₽`, "error"); return; }
+    if (amt > CFG.depositMax) { toast(`Максимум ${CFG.depositMax}₽`, "error"); return; }
+    try {
+      const r = await api("/api/deposit", { method: "POST", json: { amount: amt } });
+      if (r.pay_url) {
+        if (tg) tg.openLink(r.pay_url);
+        else window.open(r.pay_url, "_blank");
+        toast("Счёт создан, оплати по ссылке", "success");
+        closeSheet();
       }
     } catch (e) {
-      if (e.status === 503) toast("Криптовалютные платежи временно недоступны", true);
-      else toast(e.message || "Ошибка", true);
-    } finally {
-      btn.disabled = false;
+      if (e.status === 503) toast("Платёжная система не настроена админом", "error");
+      else toast(e.message, "error");
     }
   });
 
-  // ---------------- Orders ----------------
-  async function loadOrders() {
-    try {
-      const res = await api("/api/orders");
-      const list = $("#orders-list");
-      list.innerHTML = "";
-      if (!res.orders.length) {
-        list.innerHTML = '<p class="muted">У тебя пока нет заказов.</p>';
-        return;
-      }
-      res.orders.forEach((o) => {
-        const card = document.createElement("div");
-        card.className = "order-card";
-        card.innerHTML = `
-          <div class="order-head">
-            <b>#${o.id} — ${o.title}</b>
-            <span class="order-status status-${o.status}">${o.status}</span>
-          </div>
-          <div class="order-target">→ ${o.target}</div>
-          <div class="muted">${new Date(o.created_at).toLocaleString("ru-RU")} • ${o.price_pretty}</div>
-        `;
-        list.appendChild(card);
-      });
-    } catch (e) { toast(e.message, true); }
-  }
-
-  // ---------------- Referral ----------------
-  async function loadRef() {
-    try {
-      const r = await api("/api/referral");
-      $("#ref-code").textContent = r.code;
-      $("#ref-link").value = r.link;
-      $("#ref-count").textContent = r.referrals;
-      $("#ref-earned").textContent = r.earned_pretty;
-    } catch (e) { toast(e.message, true); }
-  }
-  $("#ref-share").addEventListener("click", () => {
-    const link = $("#ref-link").value;
-    if (tg && tg.openTelegramLink) {
-      const text = encodeURIComponent(
-        `Залетай в Vavilon Market — Robux, Telegram Stars, Brawl и Clash дешевле. По моей ссылке ` + link
-      );
-      tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${text}`);
-      return;
-    }
-    if (navigator.share) {
-      navigator.share({ url: link, title: "Vavilon Market" }).catch(() => {});
-      return;
-    }
-    navigator.clipboard.writeText(link).then(() => toast("Ссылка скопирована"));
-  });
-
-  // ---------------- Review ----------------
-  const stars = $$('#rating span');
-  stars.forEach((s) => {
+  // ============= REVIEW FLOW =============
+  $$("#vm-review-stars span").forEach(s => {
     s.addEventListener("click", () => {
-      currentRating = Number(s.dataset.r);
-      stars.forEach((x) => x.classList.toggle("on", Number(x.dataset.r) <= currentRating));
-      stars.forEach((x) => x.textContent = Number(x.dataset.r) <= currentRating ? "★" : "☆");
+      reviewRating = Number(s.dataset.rate);
+      $$("#vm-review-stars span").forEach(x => x.classList.toggle("active", Number(x.dataset.rate) <= reviewRating));
     });
   });
-  $("#review-photo").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    $("#review-file-name").textContent = file ? file.name : "";
+  $("#vm-review-photo").addEventListener("change", (e) => {
+    reviewPhoto = e.target.files[0] || null;
+    const lbl = e.target.closest(".vm-file");
+    lbl.classList.toggle("has", !!reviewPhoto);
+    if (reviewPhoto) lbl.querySelector("span").textContent = "📎 " + reviewPhoto.name;
+    else lbl.querySelector("span").textContent = "📎 Прикрепить скриншот";
   });
-  $("#review-submit").addEventListener("click", async () => {
-    const text = $("#review-text").value.trim();
-    if (!currentRating) { toast("Поставь оценку", true); return; }
-    if (text.length < 5) { toast("Напиши пару слов", true); return; }
-    const btn = $("#review-submit");
-    btn.disabled = true;
+  $("#vm-review-submit").addEventListener("click", async () => {
+    if (reviewRating < 1) { toast("Поставь оценку", "error"); return; }
+    const text = $("#vm-review-text").value.trim();
+    if (!text) { toast("Напиши пару слов", "error"); return; }
+    const fd = new FormData();
+    fd.append("rating", reviewRating);
+    fd.append("text", text);
+    if (reviewPhoto) fd.append("photo", reviewPhoto);
     try {
-      const fd = new FormData();
-      fd.append("rating", currentRating);
-      fd.append("text", text);
-      const photo = $("#review-photo").files[0];
-      if (photo) fd.append("photo", photo);
-      const resp = await fetch("/api/review", {
-        method: "POST",
-        headers: { "X-Init-Data": initData },
-        body: fd,
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail || resp.statusText);
+      const r = await fetch("/api/review", { method: "POST", headers: { "X-Init-Data": initData }, body: fd });
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(t || "ошибка");
       }
-      toast("Спасибо за отзыв! 💛");
-      $("#review-text").value = "";
-      $("#review-photo").value = "";
-      $("#review-file-name").textContent = "";
-      currentRating = 0;
-      stars.forEach((x) => { x.classList.remove("on"); x.textContent = "☆"; });
-    } catch (e) { toast(e.message, true); }
-    finally { btn.disabled = false; }
+      toast("Спасибо! Отзыв уходит в канал", "success");
+      $("#vm-review-text").value = "";
+      reviewPhoto = null; reviewRating = 0;
+      $$("#vm-review-stars span").forEach(x => x.classList.remove("active"));
+      $(".vm-file").classList.remove("has");
+      $(".vm-file span").textContent = "📎 Прикрепить скриншот";
+      closeSheet();
+    } catch (e) { toast("Не удалось отправить", "error"); }
   });
 
-  // ---------------- Boot ----------------
-  async function boot() {
+  // ============= PROFILE =============
+  async function refreshProfile() {
     try {
-      const [me, cat] = await Promise.all([api("/api/me"), api("/api/catalog")]);
-      user = me.user;
-      catalog = cat;
-      $("#balance").textContent = user.balance_pretty;
+      const [m, orders, ref] = await Promise.all([
+        api("/api/me"),
+        api("/api/orders"),
+        api("/api/referral"),
+      ]);
+      me = m.user;
+      referral = ref;
+      const first = (me.first_name || me.username || "Пользователь").trim();
+      $("#vm-pf-name").textContent = first;
+      $("#vm-pf-id").textContent = "TG ID: " + me.id;
+      $("#vm-pf-avatar").textContent = (first[0] || "👤").toUpperCase();
+      $("#vm-pf-balance").textContent = me.balance_pretty;
+      $("#vm-pf-orders").textContent = orders.orders.length;
+      $("#vm-pf-refs").textContent = ref.referrals;
+      const spent = orders.orders
+        .filter(o => o.status !== "cancelled")
+        .reduce((s, o) => s + Number(o.price), 0);
+      $("#vm-pf-spent").textContent = fmt(spent);
+      $("#vm-pf-ref-link").value = ref.link;
+      $("#vm-pf-ref-stats").textContent = `+${ref.bonus}₽ за каждого друга, купившего на ${ref.threshold}₽. Приведено: ${ref.referrals} · Заработано: ${ref.earned_pretty}`;
+      renderOrders(orders.orders);
     } catch (e) {
-      $("#balance").textContent = "—";
-      if (!initData) {
-        toast("Открой страницу из бота Telegram", true);
-      } else {
-        toast(e.message, true);
-      }
+      toast("Не удалось загрузить профиль: " + e.message, "error");
     }
   }
-  boot();
+  function renderOrders(list) {
+    const root = $("#vm-pf-orders-list");
+    if (!list.length) {
+      root.innerHTML = '<div class="vm-empty">Заказов пока нет</div>';
+      return;
+    }
+    root.innerHTML = "";
+    list.slice(0, 20).forEach(o => {
+      const el = document.createElement("div");
+      el.className = "vm-order";
+      const statusLabel = o.status === "paid" ? "ожидание" : o.status === "delivered" ? "выдан" : (o.status === "cancelled" ? "отменён" : o.status);
+      const statusCls = "vm-status-" + o.status;
+      el.innerHTML = `
+        <div class="vm-order-info">
+          <div class="vm-order-title">${o.title}</div>
+          <div class="vm-order-meta">#${o.id} · ${new Date(o.created_at).toLocaleDateString('ru-RU')} · <span class="${statusCls}">${statusLabel}</span></div>
+        </div>
+        <div class="vm-order-price">${o.price_pretty}</div>
+      `;
+      root.appendChild(el);
+    });
+  }
+
+  $("#vm-pf-ref-copy").addEventListener("click", () => {
+    if (!referral) return;
+    navigator.clipboard.writeText(referral.link).then(
+      () => toast("Ссылка скопирована", "success"),
+      () => toast("Не удалось скопировать", "error"),
+    );
+  });
+  $("#vm-pf-ref-share").addEventListener("click", () => {
+    if (!referral) return;
+    const url = "https://t.me/share/url?url=" + encodeURIComponent(referral.link) +
+                "&text=" + encodeURIComponent(`🛒 VavilonMarket — донат дешевле. Регайся по моей ссылке и получи бонус.`);
+    if (tg) tg.openTelegramLink(url);
+    else window.open(url, "_blank");
+  });
+
+  // ============= INIT =============
+  initSlider();
+  loadCatalog();
+  refreshProfile();
 })();
