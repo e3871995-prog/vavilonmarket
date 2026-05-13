@@ -68,10 +68,9 @@ body.vm-in-browser .vm-header{top:46px}
   body.vm-in-browser .vm-page[data-page="profile"]{display:none}
   body.vm-in-browser .vm-page[data-page="profile"].active{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
   body.vm-in-browser .vm-page[data-page="profile"] > .vm-section{padding:0}
-  body.vm-in-browser .vm-bottom-nav{position:sticky;bottom:auto;top:auto;left:0;right:0;border-top:none;
-    border-bottom:1px solid var(--border);padding:0;justify-content:center;gap:24px;max-width:none;margin:0;
-    background:transparent;backdrop-filter:none}
-  body.vm-in-browser .vm-bn-item{flex-direction:row;gap:8px;padding:14px 18px}
+  body.vm-in-browser .vm-bottom-nav{max-width:480px;margin:0 auto;border-radius:16px 16px 0 0;
+    justify-content:space-around;gap:0}
+  body.vm-in-browser .vm-bn-item{flex-direction:row;gap:8px;padding:10px 18px}
   body.vm-in-browser .vm-bn-icon{font-size:18px}
   body.vm-in-browser .vm-bn-label{font-size:14px}
   body.vm-in-browser .vm-sheet{max-width:520px;left:50%;right:auto;width:90vw;bottom:auto;top:50%;
