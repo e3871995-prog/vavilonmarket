@@ -3,6 +3,17 @@
   const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
   if (tg) { try { tg.expand(); tg.ready(); tg.setHeaderColor && tg.setHeaderColor('#0d1117'); } catch (_) {} }
   const initData = tg ? tg.initData : "";
+  const IS_TG = !!(tg && initData);
+  const BOT_LINK = "https://t.me/Vavilon_Shop_Bot";
+  if (!IS_TG) {
+    document.body.classList.add("vm-in-browser");
+    const banner = document.getElementById("vm-browser-banner");
+    if (banner) banner.style.display = "";
+  }
+  function openBot(reason) {
+    if (reason) toast(reason + " — открываю бота", "info");
+    setTimeout(() => { window.open(BOT_LINK, "_blank"); }, reason ? 800 : 0);
+  }
   const CFG = window.__CFG__ || {};
 
   const $ = (s, root) => (root || document).querySelector(s);
@@ -203,7 +214,8 @@
 
   // ============= BUY FLOW =============
   async function startBuy(draft) {
-    if (!me) { toast("Открой через бота", "error"); return; }
+    if (!IS_TG) { openBot("Покупки — в боте Telegram"); return; }
+    if (!me) { toast("Подожди секунду, загружаем профиль", "error"); refreshProfile(); return; }
     try {
       const preview = await api("/api/preview", { method: "POST", json: { sku: draft.sku, quantity: draft.quantity } });
       buyDraft = Object.assign({}, draft, preview);
@@ -268,6 +280,7 @@
   }
   initDepositPresets();
   $("#vm-deposit-submit").addEventListener("click", async () => {
+    if (!IS_TG) { openBot("Пополнение — в боте Telegram"); return; }
     const amt = parseInt($("#vm-deposit-input").value || "0", 10);
     if (!amt || amt < CFG.depositMin) { toast(`Минимум ${CFG.depositMin}₽`, "error"); return; }
     if (amt > CFG.depositMax) { toast(`Максимум ${CFG.depositMax}₽`, "error"); return; }
@@ -300,6 +313,7 @@
     else lbl.querySelector("span").textContent = "📎 Прикрепить скриншот";
   });
   $("#vm-review-submit").addEventListener("click", async () => {
+    if (!IS_TG) { openBot("Отзыв — через бота"); return; }
     if (reviewRating < 1) { toast("Поставь оценку", "error"); return; }
     const text = $("#vm-review-text").value.trim();
     if (!text) { toast("Напиши пару слов", "error"); return; }
@@ -325,6 +339,20 @@
 
   // ============= PROFILE =============
   async function refreshProfile() {
+    if (!IS_TG) {
+      $("#vm-pf-name").textContent = "Гость";
+      $("#vm-pf-id").textContent = "Открой в Telegram, чтобы видеть баланс";
+      $("#vm-pf-avatar").textContent = "👤";
+      $("#vm-pf-balance").textContent = "—";
+      $("#vm-pf-orders").textContent = "0";
+      $("#vm-pf-refs").textContent = "0";
+      $("#vm-pf-spent").textContent = "—";
+      $("#vm-pf-ref-link").value = BOT_LINK;
+      $("#vm-pf-ref-stats").textContent = "Реферальная ссылка доступна в боте.";
+      const root = $("#vm-pf-orders-list");
+      root.innerHTML = '<div class="vm-empty">Для заказов открой магазин в боте Telegram</div>';
+      return;
+    }
     try {
       const [m, orders, ref] = await Promise.all([
         api("/api/me"),
@@ -375,6 +403,7 @@
   }
 
   $("#vm-pf-ref-copy").addEventListener("click", () => {
+    if (!IS_TG) { openBot("Реф ссылка — в боте"); return; }
     if (!referral) return;
     navigator.clipboard.writeText(referral.link).then(
       () => toast("Ссылка скопирована", "success"),
@@ -382,6 +411,7 @@
     );
   });
   $("#vm-pf-ref-share").addEventListener("click", () => {
+    if (!IS_TG) { openBot("Реф ссылка — в боте"); return; }
     if (!referral) return;
     const url = "https://t.me/share/url?url=" + encodeURIComponent(referral.link) +
                 "&text=" + encodeURIComponent(`🛒 VavilonMarket — донат дешевле. Регайся по моей ссылке и получи бонус.`);

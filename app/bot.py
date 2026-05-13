@@ -814,7 +814,7 @@ async def cmd_review(message: Message, state: FSMContext) -> None:
     await message.answer("Оцени магазин:", reply_markup=kb)
 
 
-@router.callback_query(F.data.startswith("rev:"))
+@router.callback_query(F.data.regexp(r"^rev:[1-5]$"))
 async def cb_review_rate(callback: CallbackQuery, state: FSMContext) -> None:
     rating = int(callback.data.split(":", 1)[1])
     await state.update_data(rating=rating)
