@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     crypto_pay_token: str = Field(default="", description="Crypto Pay API token")
     public_url: str = Field(default="", description="Public URL of the deployed app")
     port: int = Field(default=8080, description="HTTP port")
+    bot_mode: str = Field(
+        default="auto",
+        description="Bot transport: 'polling', 'webhook', or 'auto' (webhook if PUBLIC_URL set)",
+    )
+    webhook_secret: str = Field(
+        default="",
+        description="Secret token passed by Telegram in X-Telegram-Bot-Api-Secret-Token",
+    )
 
     database_url: str = Field(
         default="sqlite+aiosqlite:///./data/vavilon.db",
@@ -35,6 +43,23 @@ class Settings(BaseSettings):
         if not self.public_url:
             return ""
         return self.public_url.rstrip("/")
+
+    @property
+    def effective_bot_mode(self) -> str:
+        if self.bot_mode == "polling":
+            return "polling"
+        if self.bot_mode == "webhook":
+            return "webhook"
+        # auto
+        return "webhook" if self.public_url else "polling"
+
+    @property
+    def telegram_webhook_path(self) -> str:
+        return "/webhook/telegram"
+
+    @property
+    def telegram_webhook_url(self) -> str:
+        return f"{self.webapp_url}{self.telegram_webhook_path}" if self.webapp_url else ""
 
 
 settings = Settings()

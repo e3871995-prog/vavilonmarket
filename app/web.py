@@ -1,14 +1,18 @@
 """FastAPI web app — Telegram Mini App frontend + API."""
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import os
+import secrets as _secrets
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from aiogram import Bot
+from aiogram import Bot, Dispatcher
+from aiogram.types import Update
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -59,7 +63,14 @@ STATIC_DIR = BASE_DIR / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    yield
+    polling_task = await _maybe_start_bot()
+    try:
+        yield
+    finally:
+        if polling_task is not None:
+            polling_task.cancel()
+            with contextlib.suppress(Exception):
+                await polling_task
 
 
 app = FastAPI(title="Vavilon Market", lifespan=lifespan)
@@ -381,6 +392,29 @@ async def api_review(
 
 
 # ---------------------------------------------------------------------------
+# Telegram webhook
+# ---------------------------------------------------------------------------
+@app.post("/webhook/telegram")
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str = Header(default="", alias="X-Telegram-Bot-Api-Secret-Token"),
+) -> dict[str, Any]:
+    bot = _get_bot()
+    dp = _get_dispatcher()
+    if bot is None or dp is None:
+        raise HTTPException(status_code=503, detail="bot not running")
+    if settings.webhook_secret and not (
+        x_telegram_bot_api_secret_token
+        and x_telegram_bot_api_secret_token == settings.webhook_secret
+    ):
+        raise HTTPException(status_code=401, detail="bad secret token")
+    body = await request.json()
+    update = Update.model_validate(body, context={"bot": bot})
+    await dp.feed_update(bot, update)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
 # CryptoBot webhook
 # ---------------------------------------------------------------------------
 @app.post("/webhook/cryptobot")
@@ -408,15 +442,73 @@ async def cryptobot_webhook(request: Request) -> dict[str, Any]:
 # Bot instance shared with the bot module
 # ---------------------------------------------------------------------------
 _bot_singleton: Bot | None = None
+_dp_singleton: Dispatcher | None = None
 
 
-def set_bot(bot: Bot) -> None:
-    global _bot_singleton
+def set_bot(bot: Bot, dp: Dispatcher | None = None) -> None:
+    global _bot_singleton, _dp_singleton
     _bot_singleton = bot
+    _dp_singleton = dp
 
 
 def _get_bot() -> Bot | None:
     return _bot_singleton
+
+
+def _get_dispatcher() -> Dispatcher | None:
+    return _dp_singleton
+
+
+async def _maybe_start_bot() -> asyncio.Task | None:
+    """Spin up the bot inside the FastAPI lifespan (used when launched via uvicorn).
+
+    Returns the polling task if running in polling mode so it can be cancelled on shutdown.
+    """
+    if _get_bot() is not None:
+        return None  # already started by main.py
+    if not settings.bot_token:
+        logger.warning("BOT_TOKEN not set — bot disabled, web only")
+        return None
+    from .bot import make_bot, make_dispatcher  # local import to avoid cycle
+
+    bot = make_bot()
+    dp = make_dispatcher()
+    set_bot(bot, dp)
+    try:
+        me = await bot.get_me()
+        os.environ["BOT_USERNAME"] = me.username or ""
+        logger.info("Bot @%s ready (mode=%s)", me.username, settings.effective_bot_mode)
+    except Exception:
+        logger.exception("Failed to initialize bot")
+        return None
+
+    if settings.effective_bot_mode == "webhook":
+        if not settings.webhook_secret:
+            settings.webhook_secret = _secrets.token_urlsafe(32)
+        url = settings.telegram_webhook_url
+        if not url:
+            logger.error("Webhook mode requested but PUBLIC_URL is empty")
+            return None
+        try:
+            await bot.set_webhook(
+                url=url,
+                secret_token=settings.webhook_secret,
+                drop_pending_updates=False,
+                allowed_updates=dp.resolve_used_update_types(),
+            )
+            logger.info("Webhook set to %s", url)
+        except Exception:
+            logger.exception("Failed to set webhook")
+        return None
+    else:
+        try:
+            await bot.delete_webhook(drop_pending_updates=False)
+        except Exception:
+            logger.exception("Failed to delete webhook")
+        return asyncio.create_task(
+            dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types()),
+            name="bot-polling",
+        )
 
 
 async def _notify_order_via_bot(order_id: int, preview, target: str, user) -> None:
