@@ -1,64 +1,51 @@
+---
+title: Vavilon Market
+emoji: 🛒
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+short_description: Telegram bot + Mini App for digital goods (Robux/Stars/Brawl/Clash)
+---
+
 # Vavilon Market
 
-Магазин цифровых товаров (Robux, Telegram Stars, Brawl Stars, Clash Royale) — Telegram-бот + Mini App в одном процессе.
+Telegram бот + Mini App для продажи цифровых товаров:
 
-## Что внутри
+- **Robux** — 100 = 80₽, шаг 100, до 10000
+- **Telegram Stars** — 100 = 150₽, шаг 100, до 10000
+- **Brawl Stars гемы** — паки x2 от цены официального магазина
+- **Clash Royale гемы** — паки x2 от цены официального магазина
 
-- **Telegram-бот** (aiogram 3) — каталог, баланс, пополнение через CryptoBot, заказы, реферальная программа, отзывы.
-- **Mini App** (FastAPI + Jinja + vanilla JS) — открывается из бота кнопкой "🌐 Открыть магазин", авторизуется по Telegram WebApp `initData`.
-- **SQLite** (через SQLAlchemy + aiosqlite) — общая база у бота и сайта.
+## Возможности
 
-## Цены
+- Балaнс пользователя + пополнение через @CryptoBot (Visa/MC/SBP/крипта)
+- Реферальная система — каждый юзер получает код, +10₽ за каждого друга купившего от 100₽
+- История заказов
+- Отзывы со скриншотом → автоматический форвард в `@vavilonmarketnews`
+- Mini App в Telegram + полнофункциональный бот
 
-- Robux — 80₽ за 100 (крутилка по 100).
-- Telegram Stars — 150₽ за 100 (крутилка по 100).
-- Brawl Stars / Clash Royale — фиксированные паки, цена = `официальная цена × 2`.
+## Архитектура
 
-## Реферальная программа
+- **Бот**: aiogram 3.x в режиме webhook (через FastAPI endpoint)
+- **Web/API**: FastAPI + Jinja2 + Telegram WebApp init_data авторизация
+- **БД**: SQLite через async SQLAlchemy
+- **Платежи**: Crypto Pay API (@CryptoBot)
+- Один процесс (uvicorn) держит и web и бота
 
-- Каждый юзер получает 8-символьный реферальный код.
-- Когда приглашённый делает покупку ≥ 100₽, рефереру капает +10₽ на баланс.
+## Запуск
 
-## Доставка
+См. [SETUP.md](SETUP.md).
 
-После оформления заказ улетает админу в канал (`NEWS_CHANNEL`). Админ присылает товар вручную (звёзды — как подарок по @username; робуксы/гемы — через свои аккаунты) и нажимает «Выдано» — клиент получает уведомление.
+## Переменные окружения
 
-## Запуск локально
-
-```bash
-python -m venv .venv && . .venv/bin/activate
-pip install -e .
-cp .env.example .env
-# заполни BOT_TOKEN, ADMIN_USER_ID, CRYPTO_PAY_TOKEN, PUBLIC_URL
-python -m app
-```
-
-## Деплой на Fly.io
-
-Бот и веб-сервер запускаются одной командой `python -m app`. На Fly это нужно прокинуть как процесс с открытым портом `8080`.
-
-```bash
-fly launch --no-deploy
-fly secrets set BOT_TOKEN=... CRYPTO_PAY_TOKEN=... ADMIN_USER_ID=... NEWS_CHANNEL=@vavilonmarketnews PUBLIC_URL=https://<app>.fly.dev
-fly deploy
-```
-
-Crypto Pay webhook: `https://<app>.fly.dev/webhook/cryptobot` — добавь его в @CryptoBot → Crypto Pay → My Apps → Webhooks.
-
-## Структура
-
-```
-app/
-  config.py        — настройки (BOT_TOKEN, CRYPTO_PAY_TOKEN, …)
-  db.py            — модели SQLAlchemy
-  catalog.py       — цены и SKU
-  services.py      — бизнес-логика (покупки, рефералка, отзывы)
-  payments.py      — клиент CryptoBot Crypto Pay
-  telegram_auth.py — валидация WebApp initData
-  bot.py           — Telegram-бот
-  web.py           — FastAPI
-  main.py          — entrypoint (бот + веб в одном процессе)
-  templates/index.html
-  static/style.css
-  static/app.js
-```
+| Имя | Назначение |
+|---|---|
+| `BOT_TOKEN` | Токен от @BotFather (обязателен) |
+| `ADMIN_USER_ID` | Telegram user id админа (опционально — первый юзер становится админом автоматом) |
+| `NEWS_CHANNEL` | Канал для заказов и отзывов |
+| `CRYPTO_PAY_TOKEN` | Токен Crypto Pay |
+| `PUBLIC_URL` | Внешний URL (для Mini App и webhook) |
+| `BOT_MODE` | `webhook` (для продакшна) или `polling` |
+| `PORT` | Внутренний порт (HF Spaces = 7860) |
