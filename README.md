@@ -1,14 +1,3 @@
----
-title: Vavilon Market
-emoji: 🛒
-colorFrom: indigo
-colorTo: blue
-sdk: docker
-app_port: 7860
-pinned: false
-short_description: Telegram bot + Mini App for digital goods (Robux/Stars/Brawl/Clash)
----
-
 # Vavilon Market
 
 Telegram бот + Mini App для продажи цифровых товаров:
