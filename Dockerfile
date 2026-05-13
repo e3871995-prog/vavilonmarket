@@ -11,9 +11,7 @@ COPY pyproject.toml /app/
 RUN pip install --upgrade pip && pip install .
 
 COPY app /app/app
-
-RUN mkdir -p /app/data
-VOLUME ["/app/data"]
+COPY main.py /app/main.py
 
 EXPOSE 8080
 CMD ["python", "-m", "app"]

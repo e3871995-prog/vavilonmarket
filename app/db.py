@@ -60,6 +60,7 @@ class User(Base):
     referred_by: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("users.id"), default=None, index=True
     )
+    is_admin: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     orders: Mapped[list[Order]] = relationship(back_populates="user")
@@ -153,11 +154,17 @@ async def get_or_create_user(
             ).scalar_one_or_none()
             if referrer and referrer.id != user_id:
                 referred_by = referrer.id
+        # First user becomes admin automatically (only if there are no users yet).
+        existing_count = (
+            await session.execute(select(func.count(User.id)))
+        ).scalar_one()
+        first_user_admin = 1 if existing_count == 0 else 0
         user = User(
             id=user_id,
             username=username,
             first_name=first_name,
             referred_by=referred_by,
+            is_admin=first_user_admin,
         )
         session.add(user)
         await session.flush()

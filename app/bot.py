@@ -894,9 +894,17 @@ async def _finalize_review(message: Message, user, state: FSMContext, bot: Bot, 
 
 
 # ---- Admin actions on orders ---------------------------------------------
+async def _is_admin(user_id: int) -> bool:
+    if settings.admin_user_id and user_id == settings.admin_user_id:
+        return True
+    async with SessionLocal() as session:
+        user = await session.get(User, user_id)
+        return bool(user and user.is_admin)
+
+
 @router.callback_query(F.data.startswith("adm:"))
 async def cb_admin_action(callback: CallbackQuery, bot: Bot) -> None:
-    if callback.from_user is None or callback.from_user.id != settings.admin_user_id:
+    if callback.from_user is None or not await _is_admin(callback.from_user.id):
         await callback.answer("Только для админа", show_alert=True)
         return
     _, op, oid = callback.data.split(":")
