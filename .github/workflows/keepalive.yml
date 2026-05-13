@@ -1,0 +1,23 @@
+name: Keep Render Service Awake
+
+on:
+  schedule:
+    # Ping every 10 minutes so Render free tier doesn't spin down (15 min idle)
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /healthz
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /tmp/r.txt -w "%{http_code}" https://vavilonmarket.onrender.com/healthz)
+            echo "attempt=$i http=$code body=$(cat /tmp/r.txt)"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 15
+          done
+          echo "Service still cold after 3 attempts (response may take longer)."
+          exit 0
