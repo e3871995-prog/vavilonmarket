@@ -74,9 +74,10 @@ body.vm-in-browser .vm-header{top:46px}
   body.vm-in-browser .vm-bn-item{flex-direction:row;gap:8px;padding:14px 18px}
   body.vm-in-browser .vm-bn-icon{font-size:18px}
   body.vm-in-browser .vm-bn-label{font-size:14px}
-  body.vm-in-browser .vm-sheet{max-width:520px;left:50%;transform:translate(-50%,100%);right:auto;width:90vw;
-    border-radius:24px;bottom:50%;margin-bottom:-300px}
-  body.vm-in-browser .vm-sheet.active{transform:translate(-50%,0)}
+  body.vm-in-browser .vm-sheet{max-width:520px;left:50%;right:auto;width:90vw;bottom:auto;top:50%;
+    border-radius:20px;transform:translate(-50%,-50%) scale(.96);opacity:0;pointer-events:none;
+    transition:transform .2s,opacity .2s}
+  body.vm-in-browser .vm-sheet.active{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto}
 }
 @media (min-width:700px) and (max-width:999.99px){
   body.vm-in-browser .vm-page{max-width:680px;margin:0 auto;padding:0 16px 60px}
